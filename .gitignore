@@ -1,4 +1,10 @@
-.sites-runtime/
 node_modules/
-*.tgz
-*.zip
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.local
+*.log
+.DS_Store
