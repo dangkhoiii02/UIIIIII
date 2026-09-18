@@ -12,6 +12,7 @@ export type {
 } from './model/types';
 export * from './model/spf-status-catalog';
 export { validateOrder } from './model/order';
+export { getOrderPermission } from './model/order-permissions';
 import { lazy } from 'react';
 export const CreateOrderPage = lazy(() => import('./pages/CreateOrderPage'));
 export const OrdersPage = lazy(() => import('./pages/OrdersPage'));

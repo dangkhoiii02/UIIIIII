@@ -12,6 +12,7 @@ import { useOrders } from '../model/orders-context';
 import { emptyFilters, type Order } from '../model/types';
 import { filterOrders } from '../model/order';
 import { getSpfLifecyclePhase, isSpfFailureStatus } from '../model/spf-status-catalog';
+import { getOrderPermission, type OrderViewer } from '../model/order-permissions';
 
 type QuickFilterId =
   | 'all'
@@ -80,6 +81,9 @@ export default function OrdersPage() {
   const [params] = useSearchParams();
   const outletCtx = useOutletContext<{ isInternal?: boolean }>();
   const isInternal = outletCtx?.isInternal ?? false;
+  const viewer: OrderViewer = isInternal
+    ? { kind: 'internal' }
+    : { kind: 'shop', shopId: 'S275518' };
 
   const [filters, setFilters] = useState({ ...emptyFilters });
   const [quickFilter, setQuickFilter] = useState<QuickFilterId>('all');
@@ -137,10 +141,34 @@ export default function OrdersPage() {
 
   const handleAction = (action: OrderAction, order: Order) => {
     if (action === 'detail') navigate(`/orders/${encodeURIComponent(order.id)}`);
-    else if (action === 'edit' || action === 'copy')
-      navigate('/create?' + action + '=' + encodeURIComponent(order.id));
+    else if (action === 'carrier')
+      navigate(`/carrier-operations?orderId=${encodeURIComponent(order.id)}`);
+    else if (action === 'support' && isInternal)
+      navigate(`/requests?orderId=${encodeURIComponent(order.id)}`);
+    else if (action === 'copy') navigate(`/create?copy=${encodeURIComponent(order.id)}`);
+    else if (action === 'edit') {
+      const decision = getOrderPermission(viewer, order, 'edit_order');
+      if (decision.mode === 'request_support') {
+        setDialog({
+          type: 'support',
+          order,
+          initialCategory: 'Đơn Hàng',
+          initialContent: `Yêu cầu sửa thông tin đơn hàng ${order.id}. ${decision.reason || ''}`.trim(),
+        });
+      } else if (decision.allowed) setDialog({ type: 'edit', order });
+    }
     else if (action === 'print') setDialog({ type: 'print', orders: [order] });
-    else setDialog({ type: action, order });
+    else if (action === 'cancel') {
+      const decision = getOrderPermission(viewer, order, 'cancel_order');
+      if (decision.mode === 'request_support') {
+        setDialog({
+          type: 'support',
+          order,
+          initialCategory: 'Đơn Hàng',
+          initialContent: `Yêu cầu hủy đơn hàng ${order.id}. ${decision.reason || ''}`.trim(),
+        });
+      } else if (decision.allowed) setDialog({ type: 'cancel', order });
+    } else setDialog({ type: action, order });
   };
 
   const hasSelected = selected.length > 0;
@@ -220,11 +248,20 @@ export default function OrdersPage() {
                 notify('Vui lòng chọn ít nhất 1 đơn hàng để xuất Excel.');
                 return;
               }
+              const selectedOrders = list.filter((o) => selected.includes(o.id));
+              const exportableOrders = selectedOrders.filter((order) =>
+                getOrderPermission(viewer, order, 'export_order').allowed,
+              );
+              if (!exportableOrders.length) {
+                notify('Các đơn đã chọn chưa đủ điều kiện xuất dữ liệu.');
+                return;
+              }
+              if (exportableOrders.length < selectedOrders.length) {
+                notify(`Đã bỏ qua ${selectedOrders.length - exportableOrders.length} đơn chưa đủ điều kiện xuất.`);
+              }
               downloadCsv('superplatform-orders.csv', [
                 ['Mã đơn', 'Người nhận', 'Điện thoại', 'Sản phẩm', 'Thu hộ', 'Trạng thái'],
-                ...list
-                  .filter((o) => selected.includes(o.id))
-                  .map((o) => [o.id, o.name, o.phone, o.product, o.cod, o.status]),
+                ...exportableOrders.map((o) => [o.id, o.name, o.phone, o.product, o.cod, o.status]),
               ]);
             }}
           >

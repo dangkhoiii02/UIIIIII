@@ -4,7 +4,7 @@ import { Printer, ArrowLeft } from 'lucide-react';
 import { useOrders } from '../model/orders-context';
 import { money } from '@/shared/lib/format';
 import { BarcodeSvg, QrCodeSvg } from '@/shared/ui/BarcodeAndQr';
-import type { Order } from '../model/types';
+import { AsyncStatePanel } from '@/shared/ui/AsyncStatePanel';
 
 interface TemplateOption {
   key: string;
@@ -46,38 +46,19 @@ export default function OrderPrintPage() {
 
   const [activeTemplate, setActiveTemplate] = useState<string>('S10');
 
-  // Find order or fallback matching mock
-  const order: Order = orders.find((o) => o.id === id) || {
-    id: id || '826923696',
-    name: 'Bùi Duy Khang',
-    phone: '034****352',
-    address: 'Khu Phố Vạn Phước',
-    region: 'Phường Xuân Thành, Thị xã Sông Cầu, Tỉnh Phú Yên',
-    product: 'Sách',
-    weight: 350,
-    value: 0,
-    cod: 0,
-    length: 10,
-    width: 10,
-    height: 10,
-    privateId: '',
-    note: '',
-    payer: 'sender' as const,
-    inspection: 'view' as const,
-    returnGoods: false,
-    createdAt: '14/09/2026',
-    status: 'Chờ lấy hàng' as const,
-    spfCode: 'SPF-0301' as const,
-    printed: false,
-    batchId: '',
-    reconciliationId: '',
-    shippingInfo: {
-      pickupCarrier: 'SuperShip',
-      deliveryCarrier: 'SPX',
-      deliveryTracking: 'SPXVN066263841279',
-      carrierStatusText: 'SPX – Chuẩn bị giao',
-    },
-  };
+  const order = orders.find((o) => o.id === id);
+
+  if (!order) {
+    return (
+      <AsyncStatePanel
+        state="not-found"
+        actionLabel="Về danh sách Order"
+        onAction={() => navigate('/orders')}
+      />
+    );
+  }
+
+  const isInternal = localStorage.getItem('superplatform:view_mode') === 'internal';
 
   const trackingCode = order.shippingInfo?.deliveryTracking || 'SPXVN066263841279';
   const carrierName = order.shippingInfo?.deliveryCarrier || 'SPX';
@@ -85,7 +66,6 @@ export default function OrderPrintPage() {
     TEMPLATE_OPTIONS.find((t) => t.key === activeTemplate) || TEMPLATE_OPTIONS[4]!;
 
   const handlePrint = () => {
-    const isInternal = localStorage.getItem('superplatform:view_mode') === 'internal';
     markPrinted([order.id], {
       printedBy: isInternal
         ? 'Nhân viên nội bộ SuperPlatform'

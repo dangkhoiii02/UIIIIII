@@ -29,7 +29,7 @@ export function CustomSelect({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedOption = options.find((opt) => opt.value === value) || options[0];
+  const selectedOption = options.find((opt) => opt.value === value);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -49,6 +49,8 @@ export function CustomSelect({
           type="button"
           className={`time-select-trigger ${isOpen ? 'open' : ''}`}
           onClick={() => setIsOpen(!isOpen)}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
         >
           {Icon && <Icon size={18} className="time-calendar-icon" />}
           <span className="time-trigger-text">
@@ -63,13 +65,16 @@ export function CustomSelect({
         </button>
 
         {isOpen && (
-          <div className="time-popover-menu">
+          <div className="time-popover-menu" role="listbox">
             {options.map((opt) => {
               const isSelected = value === opt.value;
               return (
-                <div
+                <button
+                  type="button"
                   key={opt.value}
                   className={`time-popover-item ${isSelected ? 'selected' : ''}`}
+                  role="option"
+                  aria-selected={isSelected}
                   onClick={() => {
                     onChange(opt.value);
                     setIsOpen(false);
@@ -80,7 +85,7 @@ export function CustomSelect({
                     {opt.label}
                     {opt.subLabel ? ` (${opt.subLabel})` : ''}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>

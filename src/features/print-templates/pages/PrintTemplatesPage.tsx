@@ -484,8 +484,18 @@ export default function PrintTemplatesPage() {
             setModalMode(undefined);
             setEditingTemplate({});
           }}
+          footer={
+            <>
+              <Button type="button" onClick={() => setModalMode(undefined)}>
+                Đóng
+              </Button>
+              <Button type="submit" form="print-template-form" variant="primary">
+                {modalMode === 'add' ? 'Tạo mẫu tem' : 'Lưu thay đổi'}
+              </Button>
+            </>
+          }
         >
-          <form onSubmit={handleSaveForm} style={{ display: 'grid', gap: 14 }}>
+          <form id="print-template-form" onSubmit={handleSaveForm} style={{ display: 'grid', gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <label className="field">
                 <span>Mã tem (Short Code) *</span>
@@ -556,14 +566,6 @@ export default function PrintTemplatesPage() {
               </label>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-              <Button type="button" onClick={() => setModalMode(undefined)}>
-                Hủy bỏ
-              </Button>
-              <Button type="submit" variant="primary">
-                {modalMode === 'add' ? 'Tạo mẫu tem' : 'Lưu thay đổi'}
-              </Button>
-            </div>
           </form>
         </Modal>
       )}

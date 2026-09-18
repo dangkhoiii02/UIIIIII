@@ -104,11 +104,39 @@ describe('order domain', () => {
     });
   });
 
+  it('retries waybill creation and pickup only at their exact failure states', () => {
+    const seedRepository = createMemoryOrderRepository([]);
+    const [created] = seedRepository.create([valid]);
+
+    const creationFailure = {
+      ...created!,
+      spfCode: 'SPF-0102' as const,
+      status: 'Tạo đơn NVC lỗi' as const,
+    };
+    const creationRepository = createMemoryOrderRepository([creationFailure]);
+    expect(
+      creationRepository.applyOperation(creationFailure.id, { type: 'retry-create-waybill' }),
+    ).toMatchObject({ spfCode: 'SPF-0301', status: 'Chờ lấy hàng' });
+
+    const pickupFailure = {
+      ...created!,
+      spfCode: 'SPF-0402' as const,
+      status: 'Lấy hàng thất bại' as const,
+      pickupAttempts: 1,
+    };
+    const pickupRepository = createMemoryOrderRepository([pickupFailure]);
+    expect(
+      pickupRepository.applyOperation(pickupFailure.id, { type: 'request-pickup-retry' }),
+    ).toMatchObject({ spfCode: 'SPF-0403', status: 'Đang yêu cầu lấy lại', pickupAttempts: 2 });
+  });
+
   it('changes carrier with an audit record and rejects the current carrier', () => {
     const seedRepository = createMemoryOrderRepository([]);
     const [created] = seedRepository.create([valid]);
     const routed = {
       ...created!,
+      spfCode: 'SPF-0501' as const,
+      status: 'Đã lấy hàng' as const,
       selectedCarrier: 'GHN',
       shippingInfo: {
         deliveryCarrier: 'GHN',
@@ -135,6 +163,18 @@ describe('order domain', () => {
         changedBy: 'Ops',
       }),
     ).toThrow('NVC mới phải khác NVC đang phụ trách.');
+
+    const deliveringRepository = createMemoryOrderRepository([
+      { ...routed, spfCode: 'SPF-0801', status: 'Đang giao hàng' },
+    ]);
+    expect(() =>
+      deliveringRepository.applyOperation(routed.id, {
+        type: 'change-carrier',
+        carrier: 'Viettel Post',
+        reason: 'Thử đổi khi đang giao',
+        changedBy: 'Ops',
+      }),
+    ).toThrow('Chỉ có thể đổi NVC khi Order đang ở giai đoạn NVC nhận hàng.');
 
     const changed = repository.applyOperation(routed.id, {
       type: 'change-carrier',
@@ -171,7 +211,7 @@ describe('order domain', () => {
         stages: [
           {
             key: 'pickup' as const,
-            title: 'Chuyển',
+            title: 'Lấy',
             carrier: 'SuperShip',
             tracking: 'STGS983262LM.826941741',
           },
@@ -214,7 +254,7 @@ describe('order domain', () => {
         stages: [
           {
             key: 'pickup' as const,
-            title: 'Chuyển',
+            title: 'Lấy',
             carrier: 'SuperShip',
             tracking: 'STGS983262LM.826941741',
           },
@@ -239,19 +279,28 @@ describe('order domain', () => {
     const orders = createMemoryOrderRepository().list();
     const codes = orders.map((order) => order.spfCode);
 
-    expect(orders).toHaveLength(9);
+    expect(orders).toHaveLength(18);
     expect(codes).toEqual(
       expect.arrayContaining([
         'SPF-0301',
         'SPF-0801',
         'SPF-0802',
+        'SPF-0803',
         'SPF-0901',
         'SPF-1009',
         'SPF-1201',
         'SPF-0201',
+        'SPF-0102',
+        'SPF-0402',
+        'SPF-0501',
+        'SPF-0603',
+        'SPF-0702',
+        'SPF-1005',
+        'SPF-1103',
+        'SPF-1107',
       ]),
     );
-    expect(new Set(codes).size).toBe(7);
+    expect(new Set(codes).size).toBe(16);
     const instantOrders = orders.filter((order) => order.serviceType === 'instant');
     expect(instantOrders.map((order) => order.selectedCarrier)).toEqual(
       expect.arrayContaining(['Green SM Express', 'GrabExpress']),

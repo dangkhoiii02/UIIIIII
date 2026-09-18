@@ -535,6 +535,27 @@ export function isSpfFailureStatus(code: SpfStatusCode): boolean {
   ].includes(code);
 }
 
+export type SpfStatusTone =
+  | 'neutral'
+  | 'warning'
+  | 'info'
+  | 'success'
+  | 'danger'
+  | 'returning'
+  | 'cancelled';
+
+/** Màu ngữ nghĩa dùng thống nhất cho badge trạng thái ở mọi màn hình Order. */
+export function getSpfStatusTone(code: SpfStatusCode): SpfStatusTone {
+  const phase = getSpfLifecyclePhase(code);
+  if (code === 'SPF-0201') return 'cancelled';
+  if (isSpfFailureStatus(code)) return 'danger';
+  if (phase === 'delivered' || phase === 'returned') return 'success';
+  if (phase === 'return') return 'returning';
+  if (phase === 'handover' || phase === 'delivery') return 'info';
+  if (phase === 'pickup') return 'warning';
+  return 'neutral';
+}
+
 /** Nhãn công khai rút gọn đúng theo mục 9.2 của tài liệu trạng thái. */
 export function getPublicSpfStatusName(code: SpfStatusCode): string {
   if (code >= 'SPF-0601' && code <= 'SPF-0606') return 'Đang trung chuyển';

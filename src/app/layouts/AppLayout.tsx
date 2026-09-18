@@ -37,6 +37,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const notify = useToast();
   const { pathname } = useLocation();
+  const isAccessDeniedPage = pathname === '/403';
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -44,10 +45,16 @@ export function AppLayout() {
 
   useEffect(() => {
     if (isInternal && SHOP_ONLY_PATHS.has(pathname)) {
-      navigate('/403', { replace: true, state: { from: pathname } });
+      navigate('/403', {
+        replace: true,
+        state: { from: pathname, attemptedArea: 'shop' },
+      });
     }
     if (!isInternal && INTERNAL_ONLY_PATHS.has(pathname)) {
-      navigate('/403', { replace: true, state: { from: pathname } });
+      navigate('/403', {
+        replace: true,
+        state: { from: pathname, attemptedArea: 'internal' },
+      });
     }
   }, [isInternal, navigate, pathname]);
 
@@ -79,7 +86,15 @@ export function AppLayout() {
   };
 
   return (
-    <div className={collapsed ? 'app-shell collapsed' : 'app-shell'}>
+    <div
+      className={[
+        'app-shell',
+        collapsed ? 'collapsed' : '',
+        isAccessDeniedPage ? 'access-denied-shell' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <aside id="sidebar">
         <Link className="brand" to="/orders">
           <div className="brand-logo-wrap">

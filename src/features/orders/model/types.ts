@@ -21,6 +21,7 @@ export interface OrderInput {
   payer: 'sender' | 'recipient';
   inspection: 'view' | 'try' | 'none';
   returnGoods: boolean;
+  businessType?: 'STANDARD' | 'PARTIAL' | 'EXCHANGE' | 'RETURN';
   /** Ứng dụng/mô hình khách hàng dùng khi tạo đơn. */
   customerApplication?: 'SUPERSHIP' | 'SUPERAI';
   customerModel?: 'LOCAL_LEGACY' | 'LOCAL_NEW' | 'NATIONAL' | 'SUPERAI';
@@ -29,6 +30,7 @@ export interface OrderInput {
   selectedService?: string;
   carrierSelectionMode?: string;
   pickupAddressOverride?: string;
+  returnAddressOverride?: string;
 }
 
 export type { SpfStatusCode } from './spf-status-catalog';
@@ -92,6 +94,8 @@ export interface CarrierChangeRecord {
 }
 
 export type OrderOperation =
+  | { type: 'retry-create-waybill' }
+  | { type: 'request-pickup-retry' }
   | { type: 'request-redelivery' }
   | { type: 'request-return'; reason: string }
   | { type: 'confirm-return' }
@@ -125,7 +129,7 @@ export interface InstantDeliveryTracking {
 
 export interface ShippingStageItem {
   key: 'pickup' | 'delivery' | 'return' | 'refund';
-  title: string; // 'Chuyển' | 'Giao' | 'Hoàn'
+  title: string; // 'Lấy' | 'Giao' | 'Hoàn' | 'Trả cuối'
   carrier: string;
   tracking: string;
   isSuperShip?: boolean;
@@ -197,7 +201,6 @@ export interface Order extends OrderInput {
   /** Vị trí gần nhất của tài xế cho đơn hỏa tốc nội thành. */
   instantTracking?: InstantDeliveryTracking;
   deliveryResult?: 'NONE' | 'PARTIAL' | 'FULL';
-  businessType?: 'STANDARD' | 'PARTIAL' | 'EXCHANGE' | 'RETURN';
   returnReason?: string;
   supportStatus?: string;
   codPaymentStatus?: string;

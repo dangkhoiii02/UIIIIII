@@ -24,7 +24,8 @@ export function Modal({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      className={wide ? 'modal-wide' : ''}
+      aria-modal="true"
+      className={`modal-dialog${wide ? ' modal-wide' : ''}`}
       onCancel={onClose}
     >
       <div className="modal-head" id={titleId}>

@@ -37,14 +37,20 @@ import { money } from '@/shared/lib/format';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { AsyncStatePanel } from '@/shared/ui/AsyncStatePanel';
+import { CustomSelect } from '@/shared/ui/CustomSelect';
 import { useToast } from '@/shared/ui/toast-context';
 import { useOrders } from '../model/orders-context';
 import { SupportDialog } from '@/features/support';
 import { BarcodeSvg, QrCodeSvg } from '@/shared/ui/BarcodeAndQr';
 import { PrintHistoryDrawer } from '../components/PrintHistoryDrawer';
+import { EditOrderDialog } from '../components/EditOrderDialog';
 import type { Order, ShippingStageItem } from '../model/types';
 import type { CarrierWebhookEvent } from '../model/types';
-import { getSpfLifecyclePhase, isSpfFailureStatus } from '../model/spf-status-catalog';
+import {
+  getSpfLifecyclePhase,
+  getSpfStatusTone,
+  isSpfFailureStatus,
+} from '../model/spf-status-catalog';
 import {
   getOrderPermission,
   type OrderCapability,
@@ -91,6 +97,17 @@ interface ActionHistoryItem {
   time: string;
   visibility: 'shop' | 'internal';
   rawMeta?: string;
+}
+
+const CHANGE_CARRIER_OPTIONS = [
+  { value: 'GHN', label: 'GHN', subLabel: '32.000đ · 1–2 ngày' },
+  { value: 'Viettel Post', label: 'Viettel Post', subLabel: '34.500đ · 2–3 ngày' },
+  { value: 'SPX Express', label: 'SPX Express', subLabel: '29.000đ · 2–4 ngày' },
+  { value: 'J&T Express', label: 'J&T Express', subLabel: '31.500đ · 2–3 ngày' },
+];
+
+function isSameCarrier(first: string, second: string): boolean {
+  return first.trim().toLocaleLowerCase('vi') === second.trim().toLocaleLowerCase('vi');
 }
 
 function renderCarrierLogoDetail(carrier: string) {
@@ -1131,18 +1148,28 @@ export default function OrderDetailPage() {
   const [showPhoneSender, setShowPhoneSender] = useState(false);
   const [showDeliveryShipperPhone, setShowDeliveryShipperPhone] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportPreset, setSupportPreset] = useState({ category: '', content: '' });
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showEditCodModal, setShowEditCodModal] = useState(false);
+  const [editCodValue, setEditCodValue] = useState('');
+  const [isPartialReturn, setIsPartialReturn] = useState(false);
+  const [editCodNote, setEditCodNote] = useState('');
   const [showEditInfoModal, setShowEditInfoModal] = useState(false);
   const [showPrintHistory, setShowPrintHistory] = useState(false);
   const [isDeliveryProofExpanded, setIsDeliveryProofExpanded] = useState(false);
   const [operationModal, setOperationModal] = useState<
-    'redelivery' | 'return' | 'confirm-return' | 'change-carrier' | 'images' | null
+    | 'retry-create'
+    | 'pickup-retry'
+    | 'redelivery'
+    | 'confirm-return'
+    | 'change-carrier'
+    | 'images'
+    | null
   >(null);
   const [operationError, setOperationError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedCarrier, setSelectedCarrier] = useState('GHN');
+  const [selectedCarrier, setSelectedCarrier] = useState('');
   const [operationReason, setOperationReason] = useState('');
   const [pendingImages, setPendingImages] = useState<
     Array<{ id: string; imageUrl: string; fileName: string; uploadedAt: string; uploadedBy: string }>
@@ -1208,10 +1235,24 @@ export default function OrderDetailPage() {
   const permission = (capability: OrderCapability) =>
     getOrderPermission(viewer, order, capability);
 
+  const openSupportRequest = (category = 'Đơn Hàng', content = '') => {
+    setSupportPreset({ category, content });
+    setShowSupportModal(true);
+  };
+
+  const currentDeliveryCarrier =
+    order.shippingInfo?.deliveryCarrier || order.selectedCarrier || 'Chưa gán';
+  const availableCarrierOptions = CHANGE_CARRIER_OPTIONS.filter(
+    (option) => !isSameCarrier(option.value, currentDeliveryCarrier),
+  );
+
   const openOperation = (type: typeof operationModal) => {
     setOperationError('');
     setOperationReason('');
     setPendingImages([]);
+    if (type === 'change-carrier') {
+      setSelectedCarrier(availableCarrierOptions[0]?.value || '');
+    }
     setOperationModal(type);
   };
 
@@ -1378,7 +1419,7 @@ export default function OrderDetailPage() {
 
           <div className="order-detail-header-right">
             <span
-              className={`order-status-pill ${order.spfCode === 'SPF-0201' ? 'status-cancelled' : ''}`}
+              className={`order-status-pill status-${getSpfStatusTone(order.spfCode)}`}
             >
               {order.status}
             </span>
@@ -1398,7 +1439,10 @@ export default function OrderDetailPage() {
             onAction={() =>
               isInternal
                 ? navigate(`/carrier-operations?orderId=${order.id}`)
-                : setShowSupportModal(true)
+                : openSupportRequest(
+                    'Đối Soát',
+                    `Yêu cầu kiểm tra lỗi đồng bộ trạng thái của đơn ${order.id}.`,
+                  )
             }
           />
         )}
@@ -2136,6 +2180,39 @@ export default function OrderDetailPage() {
                     <span className="fee-item-label">Tiền thu người nhận</span>
                     <span className="fee-item-val-green">0 đ</span>
                   </div>
+
+                  {isInternal && permission('view_carrier_cost').allowed && (
+                    <>
+                      <div className="fee-item-divider" />
+                      <div className="internal-carrier-cost-heading">
+                        <ShieldCheck size={14} />
+                        <span>GIÁ VỐN NVC · CHỈ NỘI BỘ</span>
+                      </div>
+                      <div className="fee-item-row internal-cost-row">
+                        <span className="fee-item-label">Giá bán cho Shop</span>
+                        <span className="fee-item-val-bold">
+                          {money(order.serviceType === 'instant' ? 45000 : 14000)}
+                        </span>
+                      </div>
+                      <div className="fee-item-row internal-cost-row">
+                        <span className="fee-item-label">
+                          Giá vốn {order.shippingInfo?.deliveryCarrier || 'NVC'}
+                        </span>
+                        <span className="fee-item-val-internal">
+                          {money(order.serviceType === 'instant' ? 36000 : 10500)}
+                        </span>
+                      </div>
+                      <div className="fee-item-row internal-margin-row">
+                        <span className="fee-item-label">Biên gộp dự kiến</span>
+                        <span className="fee-item-val-green">
+                          {money(order.serviceType === 'instant' ? 9000 : 3500)}
+                        </span>
+                      </div>
+                      <div className="internal-price-account-note">
+                        Tài khoản giá: {order.priceAccountType === 'private' ? 'Riêng' : 'Dùng chung'}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -2211,7 +2288,7 @@ export default function OrderDetailPage() {
 
       {isInternal ? (
         <div className="detail-bottom-toolbar internal-detail-toolbar">
-          {permission('confirm_return').allowed && order.spfCode === 'SPF-1001' && (
+          {permission('confirm_return').allowed && (
             <button
               type="button"
               className="btn-toolbar-red-primary"
@@ -2221,130 +2298,223 @@ export default function OrderDetailPage() {
               <span>XÁC NHẬN CHUYỂN HOÀN</span>
             </button>
           )}
+
+          {order.supportStatus && (
+            <button
+              type="button"
+              className="btn-toolbar-red-primary"
+              onClick={() => navigate(`/requests?orderId=${order.id}`)}
+            >
+              <CheckCircle2 size={16} />
+              <span>XỬ LÝ YÊU CẦU</span>
+            </button>
+          )}
+
+          {permission('reconcile_carrier').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-muted"
+              onClick={() => navigate(`/carrier-operations?orderId=${order.id}`)}
+            >
+              <Compass size={16} />
+              <span>{order.syncStatus === 'FAILED' ? 'TRA SOÁT ĐỒNG BỘ' : 'VẬN HÀNH NVC'}</span>
+            </button>
+          )}
+
+          {permission('change_carrier').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-muted"
+              onClick={() => openOperation('change-carrier')}
+            >
+              <Truck size={16} />
+              <span>ĐỔI NHÀ VẬN CHUYỂN</span>
+            </button>
+          )}
+
+          {permission('print_label').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-blue-primary"
+              onClick={() => navigate(`/orders/${order.id}/print`)}
+            >
+              <Printer size={16} />
+              <span>IN NHÃN</span>
+            </button>
+          )}
+
+        </div>
+      ) : (
+        <div className="detail-bottom-toolbar">
           <button
             type="button"
             className="btn-toolbar-red-primary"
-            onClick={() => navigate(`/requests?orderId=${order.id}`)}
+            onClick={() => navigate(`/create?copy=${order.id}`)}
           >
-            <CheckCircle2 size={16} />
-            <span>XỬ LÝ YÊU CẦU</span>
+            <RotateCcw size={16} />
+            <span>TẠO LẠI ĐƠN</span>
           </button>
-          <button
-            type="button"
-            className="btn-toolbar-muted"
-            onClick={() => openOperation('change-carrier')}
-            disabled={!permission('change_carrier').allowed}
-          >
-            <Truck size={16} />
-            <span>ĐỔI NVC</span>
-          </button>
-          <button
-            type="button"
-            className="btn-toolbar-blue-primary"
-            onClick={() => navigate(`/orders/${order.id}/print`)}
-          >
-            <Printer size={16} />
-            <span>IN NHÃN</span>
-          </button>
+
+          {permission('request_support').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-red-outline"
+              onClick={() => openSupportRequest()}
+            >
+              <Send size={15} />
+              <span>GỬI YÊU CẦU</span>
+            </button>
+          )}
+
+          {permission('retry_create_waybill').allowed && (
+            <button type="button" className="btn-toolbar-red-primary" onClick={() => openOperation('retry-create')}>
+              <RotateCcw size={16} />
+              <span>THỬ TẠO LẠI VẬN ĐƠN</span>
+            </button>
+          )}
+
+          {permission('request_pickup_retry').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-red-primary"
+              onClick={() =>
+                permission('request_pickup_retry').mode === 'direct'
+                  ? openOperation('pickup-retry')
+                  : openSupportRequest('Lấy Hàng', `Yêu cầu lấy lại hàng cho đơn ${order.id}.`)
+              }
+            >
+              <RotateCcw size={16} />
+              <span>YÊU CẦU LẤY LẠI</span>
+            </button>
+          )}
+
+          {permission('request_handover_retry').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-red-outline"
+              onClick={() => openSupportRequest('Giao Hàng', `Yêu cầu bàn giao lại đơn ${order.id} cho NVC giao.`)}
+            >
+              <RotateCcw size={16} />
+              <span>YÊU CẦU BÀN GIAO LẠI</span>
+            </button>
+          )}
 
           {permission('request_redelivery').allowed && (
             <button
               type="button"
               className="btn-toolbar-red-primary"
-              onClick={() => openOperation('redelivery')}
+              onClick={() =>
+                permission('request_redelivery').mode === 'direct'
+                  ? openOperation('redelivery')
+                  : openSupportRequest('Giao Hàng', `Yêu cầu giao lại đơn ${order.id}.`)
+              }
             >
               <RotateCcw size={16} />
               <span>YÊU CẦU GIAO LẠI</span>
             </button>
           )}
 
-          {permission('request_return').allowed && (
-            <button
-              type="button"
-              className="btn-toolbar-red-outline"
-              onClick={() => openOperation('return')}
-            >
-              <Truck size={15} />
-              <span>YÊU CẦU CHUYỂN HOÀN</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="detail-bottom-toolbar">
-          {/* 1. Tạo lại đơn */}
-          {!isInternal && (
-            <button
-              type="button"
-              className="btn-toolbar-red-primary"
-              onClick={() => navigate(`/create?copy=${order.id}`)}
-            >
-              <RotateCcw size={16} />
-              <span>TẠO LẠI ĐƠN</span>
+          {permission('request_return_pickup_retry').allowed && (
+            <button type="button" className="btn-toolbar-red-outline" onClick={() => openSupportRequest('Lấy Hàng Hoàn', `Yêu cầu lấy lại hàng hoàn cho đơn ${order.id}.`)}>
+              <RotateCcw size={15} /><span>YÊU CẦU LẤY LẠI HÀNG HOÀN</span>
             </button>
           )}
 
-          {/* 2. Gửi yêu cầu */}
-          <button
-            type="button"
-            className="btn-toolbar-red-outline"
-            onClick={() => setShowSupportModal(true)}
-          >
-            <Send size={15} />
-            <span>GỬI YÊU CẦU</span>
-          </button>
+          {permission('request_return_handover_retry').allowed && (
+            <button type="button" className="btn-toolbar-red-outline" onClick={() => openSupportRequest('Bàn Giao Hàng Hoàn', `Yêu cầu bàn giao lại hàng hoàn cuối cho đơn ${order.id}.`)}>
+              <RotateCcw size={15} /><span>BÀN GIAO LẠI HÀNG HOÀN</span>
+            </button>
+          )}
 
-          {/* 3. Sửa COD */}
-          <button
-            type="button"
-            className="btn-toolbar-muted"
-            disabled={!permission('edit_cod').allowed}
-            onClick={() => setShowEditCodModal(true)}
-          >
-            <DollarSign size={15} />
-            <span>SỬA COD</span>
-          </button>
+          {permission('request_final_return_retry').allowed && (
+            <button type="button" className="btn-toolbar-red-outline" onClick={() => openSupportRequest('Trả Hàng Cuối', `Yêu cầu trả lại hàng cho đơn ${order.id}.`)}>
+              <RotateCcw size={15} /><span>YÊU CẦU TRẢ LẠI</span>
+            </button>
+          )}
 
-          {/* 4. Hủy đơn */}
-          <button
-            type="button"
-            className="btn-toolbar-muted"
-            disabled={!permission('cancel_order').allowed}
-            onClick={() => setShowCancelModal(true)}
-          >
-            <X size={15} />
-            <span>HỦY ĐƠN</span>
-          </button>
+          {permission('edit_cod').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-muted"
+              onClick={() => {
+                const decision = permission('edit_cod');
+                if (decision.mode === 'request_support') {
+                  openSupportRequest('Đơn Hàng', `Yêu cầu sửa COD cho đơn ${order.id}. ${decision.reason || ''}`.trim());
+                  return;
+                }
+                setEditCodValue(String(order.cod));
+                setIsPartialReturn(false);
+                setEditCodNote('');
+                setShowEditCodModal(true);
+              }}
+            >
+              <DollarSign size={15} />
+              <span>{permission('edit_cod').mode === 'request_support' ? 'YÊU CẦU SỬA COD' : 'SỬA COD'}</span>
+            </button>
+          )}
 
-          {/* 5. Thay đổi thông tin */}
-          <button
-            type="button"
-            className="btn-toolbar-muted"
-            disabled={!permission('edit_order').allowed}
-            onClick={() => setShowEditInfoModal(true)}
-          >
-            <Pencil size={15} />
-            <span>THAY ĐỔI THÔNG TIN</span>
-          </button>
+          {permission('cancel_order').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-muted"
+              onClick={() => {
+                if (permission('cancel_order').mode === 'request_support') {
+                  openSupportRequest('Đơn Hàng', `Yêu cầu hủy đơn ${order.id}.`);
+                } else {
+                  setOperationError('');
+                  setShowCancelModal(true);
+                }
+              }}
+            >
+              <X size={15} />
+              <span>{permission('cancel_order').mode === 'request_support' ? 'YÊU CẦU HỦY ĐƠN' : 'HỦY ĐƠN'}</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            className="btn-toolbar-muted"
-            disabled={!permission('add_goods_images').allowed}
-            onClick={() => openOperation('images')}
-          >
-            <ImagePlus size={15} />
-            <span>THÊM ẢNH HÀNG</span>
-          </button>
+          {permission('edit_order').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-muted"
+              onClick={() =>
+                permission('edit_order').mode === 'request_support'
+                  ? openSupportRequest('Đơn Hàng', `Yêu cầu sửa thông tin đơn ${order.id}.`)
+                  : setShowEditInfoModal(true)
+              }
+            >
+              <Pencil size={15} />
+              <span>{permission('edit_order').mode === 'request_support' ? 'YÊU CẦU SỬA THÔNG TIN' : 'THAY ĐỔI THÔNG TIN'}</span>
+            </button>
+          )}
 
-          {/* 6. In tem đơn (Chuyển sang trang in tem chuyên dụng theo Screenshot 2) */}
-          <button
-            type="button"
-            className="btn-toolbar-blue-primary"
-            onClick={() => navigate(`/orders/${order.id}/print`)}
-          >
-            <Printer size={16} />
-            <span>IN NHÃN</span>
-          </button>
+          {permission('edit_return_address').allowed &&
+            permission('edit_return_address').mode !== 'new_waybill' && (
+            <button
+              type="button"
+              className="btn-toolbar-muted"
+              onClick={() => openSupportRequest('Chuyển Hoàn', `Yêu cầu đổi địa chỉ trả hàng cho đơn ${order.id}. ${permission('edit_return_address').reason || ''}`.trim())}
+            >
+              <MapPin size={15} />
+              <span>ĐỔI ĐỊA CHỈ TRẢ</span>
+            </button>
+          )}
+
+          {permission('add_goods_images').allowed && (
+            <button type="button" className="btn-toolbar-muted" onClick={() => openOperation('images')}>
+              <ImagePlus size={15} />
+              <span>THÊM ẢNH HÀNG</span>
+            </button>
+          )}
+
+          {permission('print_label').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-blue-primary"
+              onClick={() => navigate(`/orders/${order.id}/print`)}
+            >
+              <Printer size={16} />
+              <span>IN NHÃN</span>
+            </button>
+          )}
         </div>
       )}
       {/* Support Dialog */}
@@ -2353,7 +2523,12 @@ export default function OrderDetailPage() {
       )}
 
       {showSupportModal && (
-        <SupportDialog order={order} onClose={() => setShowSupportModal(false)} />
+        <SupportDialog
+          order={order}
+          initialCategory={supportPreset.category}
+          initialContent={supportPreset.content}
+          onClose={() => setShowSupportModal(false)}
+        />
       )}
 
       {/* Cancel Order Dialog */}
@@ -2367,9 +2542,18 @@ export default function OrderDetailPage() {
               <Button
                 variant="primary"
                 onClick={() => {
-                  cancelOrder(order.id);
-                  setShowCancelModal(false);
-                  notify(`Đã gửi yêu cầu hủy đơn hàng ${order.id}.`);
+                  setOperationError('');
+                  try {
+                    cancelOrder(order.id);
+                    setShowCancelModal(false);
+                    notify(`Đã hủy đơn hàng ${order.id}.`);
+                  } catch (cancelError) {
+                    setOperationError(
+                      cancelError instanceof Error
+                        ? cancelError.message
+                        : 'Không thể hủy đơn hàng. Vui lòng tải lại dữ liệu và thử lại.',
+                    );
+                  }
                 }}
               >
                 Xác nhận hủy đơn
@@ -2377,7 +2561,10 @@ export default function OrderDetailPage() {
             </>
           }
         >
-          Bạn có chắc chắn muốn gửi yêu cầu hủy đơn hàng <b>{order.id}</b>?
+          <div className="order-operation-content">
+            <p>Bạn có chắc chắn muốn hủy đơn hàng <b>{order.id}</b>?</p>
+            {operationError && <div className="operation-inline-error">{operationError}</div>}
+          </div>
         </Modal>
       )}
 
@@ -2413,47 +2600,140 @@ export default function OrderDetailPage() {
       {/* Edit COD Modal */}
       {showEditCodModal && (
         <Modal
-          title="Yêu cầu sửa tiền thu hộ (COD)"
+          title="Sửa COD"
           onClose={() => setShowEditCodModal(false)}
-          footer={null}
+          footer={
+            <>
+              <Button type="button" onClick={() => setShowEditCodModal(false)}>
+                Đóng
+              </Button>
+              <Button
+                type="submit"
+                form="edit-order-cod-form"
+                variant="primary"
+                disabled={
+                  editCodValue === '' ||
+                  Number(editCodValue) > 100_000_000 ||
+                  Number(editCodValue) === order.cod ||
+                  (isPartialReturn && !editCodNote.trim())
+                }
+              >
+                Cập nhật
+              </Button>
+            </>
+          }
         >
           <form
+            id="edit-order-cod-form"
+            className="edit-cod-form"
             onSubmit={(e) => {
               e.preventDefault();
-              const data = new FormData(e.currentTarget);
-              const nextCod = Number(data.get('cod'));
-              if (!Number.isFinite(nextCod) || nextCod < 0) {
+              const nextCod = Number(editCodValue);
+              if (!Number.isFinite(nextCod) || nextCod < 0 || nextCod > 100_000_000) {
                 notify('Tiền COD mới không hợp lệ.');
                 return;
               }
-              updateOrder(order.id, { ...order, cod: nextCod });
+              updateOrder(order.id, {
+                ...order,
+                cod: nextCod,
+                businessType: isPartialReturn ? 'PARTIAL' : order.businessType,
+                note: isPartialReturn
+                  ? `${order.note ? `${order.note}\n` : ''}Thu hồi: ${editCodNote.trim()}`
+                  : order.note,
+              });
               setShowEditCodModal(false);
               notify('Đã cập nhật tiền COD thành công!');
             }}
-            style={{ display: 'grid', gap: 14 }}
           >
-            <label className="field">
-              <span>Tiền COD hiện tại</span>
-              <input value={money(order.cod)} disabled />
+            <div className="edit-cod-order-summary">
+              <span className="edit-cod-order-icon"><QrCode size={20} /></span>
+              <div>
+                <small>Mã Order</small>
+                <strong>{order.id}</strong>
+              </div>
+              <button type="button" onClick={handleCopyId} aria-label="Sao chép mã Order">
+                <Copy size={16} />
+              </button>
+            </div>
+
+            <label className="edit-cod-field">
+              <span>Tiền thu hộ mới <b>*</b></span>
+              <div className="edit-cod-input-wrap">
+                <input
+                  name="cod"
+                  inputMode="numeric"
+                  autoFocus
+                  value={editCodValue ? Number(editCodValue).toLocaleString('vi-VN') : ''}
+                  onChange={(event) =>
+                    setEditCodValue(event.target.value.replace(/\D/g, '').replace(/^0+(?=\d)/, ''))
+                  }
+                  placeholder="Nhập số tiền COD mới"
+                  aria-describedby="edit-cod-hint"
+                />
+                {editCodValue && (
+                  <button
+                    type="button"
+                    className="edit-cod-clear"
+                    onClick={() => setEditCodValue('')}
+                    aria-label="Xóa số tiền"
+                  >
+                    <X size={17} />
+                  </button>
+                )}
+                <span className="edit-cod-currency">₫</span>
+              </div>
+              <small id="edit-cod-hint">
+                Số tiền từ 0 ₫ đến 100.000.000 ₫
+              </small>
             </label>
-            <label className="field">
-              <span>Tiền COD mới mong muốn (VNĐ) *</span>
+
+            <label className="edit-cod-partial-option">
               <input
-                name="cod"
-                type="number"
-                min="0"
-                placeholder="Nhập số tiền COD mới..."
-                required
-                defaultValue={order.cod}
+                type="checkbox"
+                checked={isPartialReturn}
+                onChange={(event) => setIsPartialReturn(event.target.checked)}
               />
+              <span>
+                <b>Giao một phần / Thu hồi</b>
+                <small>Tạo yêu cầu thu hồi một phần hàng hóa sau khi giao.</small>
+              </span>
             </label>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-              <Button type="button" onClick={() => setShowEditCodModal(false)}>
-                Hủy
-              </Button>
-              <Button type="submit" variant="primary">
-                Lưu yêu cầu
-              </Button>
+
+            {isPartialReturn && (
+              <div className="edit-cod-partial-panel">
+                <div className="edit-cod-notice">
+                  <Info size={18} />
+                  <p>
+                    Khi yêu cầu tạo mã thu hồi, vui lòng điền đầy đủ <b>tên sản phẩm thu hồi,
+                    trị giá, số lượng và khối lượng</b> tại phần ghi chú.
+                  </p>
+                </div>
+                <label className="edit-cod-note">
+                  <span>Ghi chú <b>*</b></span>
+                  <textarea
+                    maxLength={120}
+                    value={editCodNote}
+                    onChange={(event) => setEditCodNote(event.target.value)}
+                    placeholder="Nhập thông tin sản phẩm cần thu hồi..."
+                  />
+                  <small>{editCodNote.length}/120 ký tự</small>
+                </label>
+              </div>
+            )}
+
+            <div className="edit-cod-money-summary">
+              <div className="edit-cod-summary-title">
+                <DollarSign size={17} />
+                <strong>Thông tin tiền hàng</strong>
+              </div>
+              <div>
+                <span>COD hiện tại</span>
+                <b>{money(order.cod)}</b>
+              </div>
+              <div className="is-total">
+                <span>COD sau cập nhật</span>
+                <b>{editCodValue === '' ? '—' : money(Number(editCodValue))}</b>
+              </div>
             </div>
           </form>
         </Modal>
@@ -2461,47 +2741,72 @@ export default function OrderDetailPage() {
 
       {/* Edit Info Modal */}
       {showEditInfoModal && (
+        <EditOrderDialog order={order} onClose={() => setShowEditInfoModal(false)} />
+      )}
+
+      {operationModal === 'retry-create' && (
         <Modal
-          title="Yêu cầu sửa thông tin đơn hàng"
-          onClose={() => setShowEditInfoModal(false)}
-          footer={null}
+          title="Thử tạo lại vận đơn"
+          onClose={() => !isSubmitting && setOperationModal(null)}
+          footer={
+            <>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>Quay lại</Button>
+              <Button
+                variant="primary"
+                disabled={isSubmitting}
+                onClick={() =>
+                  submitOperation(
+                    () => applyOperation(order.id, { type: 'retry-create-waybill' }),
+                    'Đã tạo lại vận đơn thành công. Order chuyển sang Chờ lấy hàng.',
+                  )
+                }
+              >
+                {isSubmitting ? 'Đang tạo…' : 'Tạo lại vận đơn'}
+              </Button>
+            </>
+          }
         >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const data = new FormData(e.currentTarget);
-              updateOrder(order.id, {
-                ...order,
-                name: String(data.get('name') || '').trim(),
-                phone: String(data.get('phone') || '').trim(),
-                note: String(data.get('note') || '').trim(),
-              });
-              setShowEditInfoModal(false);
-              notify('Đã cập nhật thông tin Order thành công!');
-            }}
-            style={{ display: 'grid', gap: 14 }}
-          >
-            <label className="field">
-              <span>Tên người nhận</span>
-              <input name="name" required defaultValue={order.name} />
-            </label>
-            <label className="field">
-              <span>Số điện thoại người nhận</span>
-              <input name="phone" required defaultValue={order.phone} />
-            </label>
-            <label className="field">
-              <span>Ghi chú giao hàng mới</span>
-              <textarea name="note" rows={2} defaultValue={order.note} />
-            </label>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-              <Button type="button" onClick={() => setShowEditInfoModal(false)}>
-                Hủy
-              </Button>
-              <Button type="submit" variant="primary">
-                Lưu thay đổi
-              </Button>
+          <div className="operation-callout warning">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Hệ thống sẽ gửi lại dữ liệu sang NVC</strong>
+              <span>Chỉ thực hiện khi thông tin đơn đã được kiểm tra và lỗi trước đó có thể thử lại.</span>
             </div>
-          </form>
+          </div>
+          {operationError && <div className="operation-inline-error">{operationError}</div>}
+        </Modal>
+      )}
+
+      {operationModal === 'pickup-retry' && (
+        <Modal
+          title="Yêu cầu lấy lại hàng"
+          onClose={() => !isSubmitting && setOperationModal(null)}
+          footer={
+            <>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>Quay lại</Button>
+              <Button
+                variant="primary"
+                disabled={isSubmitting}
+                onClick={() =>
+                  submitOperation(
+                    () => applyOperation(order.id, { type: 'request-pickup-retry' }),
+                    'Đã gửi yêu cầu lấy lại hàng tới NVC.',
+                  )
+                }
+              >
+                {isSubmitting ? 'Đang gửi…' : 'Xác nhận lấy lại'}
+              </Button>
+            </>
+          }
+        >
+          <div className="operation-callout warning">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>NVC sẽ thực hiện thêm một lượt lấy hàng</strong>
+              <span>Shop cần bảo đảm kiện hàng đã sẵn sàng tại địa chỉ lấy.</span>
+            </div>
+          </div>
+          {operationError && <div className="operation-inline-error">{operationError}</div>}
         </Modal>
       )}
 
@@ -2537,53 +2842,6 @@ export default function OrderDetailPage() {
                 <span>Hãy chắc chắn người nhận có thể nhận hàng và số điện thoại còn liên lạc được.</span>
               </div>
             </div>
-            {isSubmitting && <AsyncStatePanel state="processing" compact />}
-            {operationError && <div className="operation-inline-error">{operationError}</div>}
-          </div>
-        </Modal>
-      )}
-
-      {operationModal === 'return' && (
-        <Modal
-          title="Yêu cầu chuyển hoàn"
-          onClose={() => !isSubmitting && setOperationModal(null)}
-          footer={
-            <>
-              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>
-                Quay lại
-              </Button>
-              <Button
-                variant="primary"
-                disabled={isSubmitting || !operationReason.trim()}
-                onClick={() =>
-                  submitOperation(
-                    () =>
-                      applyOperation(order.id, {
-                        type: 'request-return',
-                        reason: operationReason.trim(),
-                      }),
-                    'Đã gửi yêu cầu chuyển hoàn. Shop có thể tiếp tục theo dõi trên hành trình.',
-                  )
-                }
-              >
-                {isSubmitting ? 'Đang gửi…' : 'Gửi yêu cầu'}
-              </Button>
-            </>
-          }
-        >
-          <div className="order-operation-content">
-            <label className="field">
-              <span>Lý do chuyển hoàn *</span>
-              <textarea
-                rows={3}
-                value={operationReason}
-                onChange={(event) => setOperationReason(event.target.value)}
-                placeholder="Ví dụ: Người nhận từ chối nhận hàng"
-              />
-            </label>
-            <p className="operation-help-text">
-              Sau khi gửi, Order chuyển sang “Chờ xác nhận chuyển hoàn”. Shop không thể tự xác nhận bước này.
-            </p>
             {isSubmitting && <AsyncStatePanel state="processing" compact />}
             {operationError && <div className="operation-inline-error">{operationError}</div>}
           </div>
@@ -2659,20 +2917,22 @@ export default function OrderDetailPage() {
           <div className="order-operation-content">
             <div className="carrier-change-summary">
               <span>NVC hiện tại</span>
-              <strong>{order.shippingInfo?.deliveryCarrier || order.selectedCarrier || 'Chưa gán'}</strong>
+              <strong>{currentDeliveryCarrier}</strong>
               <ArrowRight size={18} />
               <span>NVC mới</span>
               <strong>{selectedCarrier}</strong>
             </div>
-            <label className="field">
-              <span>Chọn NVC mới *</span>
-              <select value={selectedCarrier} onChange={(event) => setSelectedCarrier(event.target.value)}>
-                <option value="GHN">GHN · 32.000đ · 1–2 ngày</option>
-                <option value="Viettel Post">Viettel Post · 34.500đ · 2–3 ngày</option>
-                <option value="SPX Express">SPX Express · 29.000đ · 2–4 ngày</option>
-                <option value="J&T Express">J&amp;T Express · 31.500đ · 2–3 ngày</option>
-              </select>
-            </label>
+            <CustomSelect
+              label={
+                <span>
+                  Chọn NVC mới <b className="red">*</b>
+                </span>
+              }
+              value={selectedCarrier}
+              onChange={setSelectedCarrier}
+              options={availableCarrierOptions}
+              icon={Truck}
+            />
             <label className="field">
               <span>Lý do đổi NVC *</span>
               <textarea

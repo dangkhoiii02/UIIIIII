@@ -7,16 +7,28 @@ import { useOrders } from '../model/orders-context';
 import type { Order } from '../model/types';
 import { OrderTimeline } from './OrderTimeline';
 import { PrintHistoryDrawer } from './PrintHistoryDrawer';
+import { EditOrderDialog } from './EditOrderDialog';
 
 export type OrderDialogState =
-  | { type: 'detail' | 'support' | 'cancel'; order: Order }
+  | { type: 'detail' | 'cancel' | 'edit'; order: Order }
+  | { type: 'support'; order: Order; initialCategory?: string; initialContent?: string }
   | { type: 'print'; orders: Order[] };
 
 export function OrderDialogs({ state, onClose }: { state: OrderDialogState; onClose: () => void }) {
   const { cancelOrder, markPrinted } = useOrders();
   const [showPrintHistory, setShowPrintHistory] = useState(false);
+  const [error, setError] = useState('');
 
-  if (state.type === 'support') return <SupportDialog order={state.order} onClose={onClose} />;
+  if (state.type === 'support')
+    return (
+      <SupportDialog
+        order={state.order}
+        initialCategory={state.initialCategory}
+        initialContent={state.initialContent}
+        onClose={onClose}
+      />
+    );
+  if (state.type === 'edit') return <EditOrderDialog order={state.order} onClose={onClose} />;
   if (state.type === 'cancel')
     return (
       <Modal
@@ -28,8 +40,17 @@ export function OrderDialogs({ state, onClose }: { state: OrderDialogState; onCl
             <Button
               variant="primary"
               onClick={() => {
-                cancelOrder(state.order.id);
-                onClose();
+                setError('');
+                try {
+                  cancelOrder(state.order.id);
+                  onClose();
+                } catch (cancelError) {
+                  setError(
+                    cancelError instanceof Error
+                      ? cancelError.message
+                      : 'Không thể hủy đơn hàng. Vui lòng tải lại dữ liệu và thử lại.',
+                  );
+                }
               }}
             >
               Hủy đơn
@@ -37,7 +58,10 @@ export function OrderDialogs({ state, onClose }: { state: OrderDialogState; onCl
           </>
         }
       >
-        Bạn muốn hủy đơn <b>{state.order.id}</b>?
+        <div className="order-operation-content">
+          <p>Bạn muốn hủy đơn <b>{state.order.id}</b>?</p>
+          {error && <div className="operation-inline-error">{error}</div>}
+        </div>
       </Modal>
     );
 
@@ -126,4 +150,3 @@ export function OrderDialogs({ state, onClose }: { state: OrderDialogState; onCl
     </>
   );
 }
-

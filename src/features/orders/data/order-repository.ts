@@ -312,7 +312,7 @@ const FEATURED_SEED_ORDERS: Order[] = [
       stages: [
         {
           key: 'pickup',
-          title: 'Chuyển',
+          title: 'Lấy',
           carrier: 'SuperShip',
           tracking: 'STGS983262LM.826941742',
           isSuperShip: true,
@@ -458,6 +458,41 @@ const FEATURED_SEED_ORDERS: Order[] = [
   {
     ...defaultOrderInput,
     ...DEFAULT_SHOP_META,
+    id: '409176285333',
+    createdAt: '2026-09-10T09:35:00+07:00',
+    name: 'Lê Minh Thư',
+    phone: '0905678123',
+    address: '86 Lê Văn Sỹ',
+    region: 'Phường 13, Quận 3, TP. Hồ Chí Minh',
+    product: 'Giày thể thao nữ',
+    weight: 720,
+    value: 620000,
+    cod: 620000,
+    status: 'Đang yêu cầu giao lại',
+    spfCode: 'SPF-0803',
+    printed: true,
+    batchId: '',
+    reconciliationId: '',
+    note: 'Người nhận đã xác nhận có thể nhận hàng trong lần giao tiếp theo.',
+    updatedAt: '2026-09-15T09:10:00+07:00',
+    sourceChannel: 'web',
+    serviceType: 'standard',
+    dispatchMethod: 'pickup',
+    deliveryResult: 'NONE',
+    businessType: 'STANDARD',
+    codPaymentStatus: 'UNPAID',
+    shippingInfo: {
+      pickupCarrier: 'SuperShip',
+      pickupTracking: 'STGS983262LM.826941750',
+      deliveryCarrier: 'J&T Express',
+      deliveryTracking: '802808938590',
+      carrierStatusText: 'J&T Express – Đang tiếp nhận yêu cầu giao lại',
+      currentStage: 'delivery',
+    },
+  },
+  {
+    ...defaultOrderInput,
+    ...DEFAULT_SHOP_META,
     id: '684210973512',
     createdAt: '2026-09-09T17:05:00+07:00',
     name: 'Võ Ngọc Hà',
@@ -498,7 +533,7 @@ const FEATURED_SEED_ORDERS: Order[] = [
       stages: [
         {
           key: 'pickup',
-          title: 'Chuyển',
+          title: 'Lấy',
           carrier: 'SuperShip',
           tracking: 'STGS983262LM.826941747',
           isSuperShip: true,
@@ -896,8 +931,65 @@ function ensureWebhookSeed(order: Order, index: number): Order {
   };
 }
 
-/** Bộ dữ liệu gọn gồm 9 luồng đại diện để dễ rà soát và chụp giao diện. */
-const INITIAL_SEED_ORDERS: Order[] = FEATURED_SEED_ORDERS.map(ensureWebhookSeed);
+const MATRIX_DEMO_SPECS: Array<{
+  id: string;
+  code: SpfStatusCode;
+  carrier: string;
+  note: string;
+}> = [
+  { id: '110000000102', code: 'SPF-0102', carrier: 'GHN', note: 'Demo: tạo vận đơn thất bại.' },
+  { id: '110000000402', code: 'SPF-0402', carrier: 'Viettel Post', note: 'Demo: lấy hàng thất bại.' },
+  { id: '110000000501', code: 'SPF-0501', carrier: 'GHN', note: 'Demo Nội bộ: đổi nhà vận chuyển.' },
+  { id: '110000000603', code: 'SPF-0603', carrier: 'J&T Express', note: 'Demo: bàn giao NVC thất bại.' },
+  { id: '110000000702', code: 'SPF-0702', carrier: 'BEST Express', note: 'Demo: chờ giao hàng.' },
+  { id: '110000001005', code: 'SPF-1005', carrier: 'GHN', note: 'Demo: lấy hàng hoàn thất bại.' },
+  { id: '110000001103', code: 'SPF-1103', carrier: 'J&T Express', note: 'Demo: bàn giao hoàn cuối thất bại.' },
+  { id: '110000001107', code: 'SPF-1107', carrier: 'GHN', note: 'Demo: trả hàng thất bại.' },
+];
+
+const MATRIX_DEMO_ORDERS: Order[] = MATRIX_DEMO_SPECS.map((spec, index) => {
+  const source = FEATURED_SEED_ORDERS[2]!;
+  const phase = getSpfLifecyclePhase(spec.code);
+  const currentStage =
+    phase === 'creating' || phase === 'pickup'
+      ? 'pickup'
+      : phase === 'handover' || phase === 'delivery'
+        ? 'delivery'
+        : phase === 'return'
+          ? spec.code >= 'SPF-1101'
+            ? 'refund'
+            : 'return'
+          : 'completed';
+  return ensureWebhookSeed(
+    {
+      ...source,
+      id: spec.id,
+      createdAt: `2026-09-${String(8 + index).padStart(2, '0')}T09:15:00+07:00`,
+      updatedAt: `2026-09-${String(8 + index).padStart(2, '0')}T11:40:00+07:00`,
+      status: SPF_STATUS_MAP[spec.code].name as SpfStatusName,
+      spfCode: spec.code,
+      selectedCarrier: spec.carrier,
+      note: spec.note,
+      printed: spec.code !== 'SPF-0102',
+      printHistory: [],
+      shippingInfo: {
+        pickupCarrier: 'SuperShip',
+        pickupTracking: `SS-PICK-${spec.id.slice(-6)}`,
+        deliveryCarrier: spec.carrier,
+        deliveryTracking: `${spec.carrier.replace(/[^A-Z0-9]/gi, '').slice(0, 4).toUpperCase()}-${spec.id.slice(-7)}`,
+        carrierStatusText: `${spec.carrier} – ${SPF_STATUS_MAP[spec.code].name}`,
+        currentStage,
+      },
+    },
+    FEATURED_SEED_ORDERS.length + index,
+  );
+});
+
+/** Bộ dữ liệu gọn gồm các luồng đại diện để dễ rà soát và chụp giao diện. */
+const INITIAL_SEED_ORDERS: Order[] = [
+  ...FEATURED_SEED_ORDERS.map(ensureWebhookSeed),
+  ...MATRIX_DEMO_ORDERS,
+];
 
 function loadFromStorage(): Order[] | null {
   try {
@@ -936,8 +1028,21 @@ function saveToStorage(orders: Order[]): void {
 }
 
 export function createPersistentOrderRepository(seed?: Order[]): OrderRepository {
-  let records: Order[] = loadFromStorage() ?? seed ?? INITIAL_SEED_ORDERS;
-  if (!loadFromStorage()) {
+  const storedRecords = loadFromStorage();
+  let records: Order[] = storedRecords ?? seed ?? INITIAL_SEED_ORDERS;
+  if (storedRecords) {
+    const requiredDemoIds = new Set([
+      '409176285333',
+      ...MATRIX_DEMO_SPECS.map((spec) => spec.id),
+    ]);
+    const missingDemoOrders = INITIAL_SEED_ORDERS.filter(
+      (order) => requiredDemoIds.has(order.id) && !records.some((item) => item.id === order.id),
+    );
+    if (missingDemoOrders.length) {
+      records = [...records, ...missingDemoOrders];
+      saveToStorage(records);
+    }
+  } else {
     saveToStorage(records);
   }
 
@@ -971,7 +1076,7 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
         serviceType: 'standard',
         dispatchMethod: 'pickup',
         deliveryResult: 'NONE',
-        businessType: 'STANDARD',
+        businessType: input.businessType || 'STANDARD',
         codPaymentStatus: 'UNPAID',
       }));
       records = [...created, ...records];
@@ -985,6 +1090,19 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
       saveToStorage(records);
     },
     cancel(id) {
+      const current = records.find((order) => order.id === id);
+      if (!current) throw new Error('Không tìm thấy đơn hàng.');
+      const cancellableCodes: SpfStatusCode[] = [
+        'SPF-0102',
+        'SPF-0202',
+        'SPF-0301',
+        'SPF-0401',
+        'SPF-0402',
+        'SPF-0403',
+      ];
+      if (!cancellableCodes.includes(current.spfCode)) {
+        throw new Error('Trạng thái Order hiện tại không cho phép hủy đơn.');
+      }
       records = records.map((order) =>
         order.id === id
           ? {
@@ -1056,14 +1174,35 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
       if (!current) throw new Error('Không tìm thấy đơn hàng.');
 
       let next: Order = { ...current, updatedAt: new Date().toISOString() };
-      if (operation.type === 'request-redelivery') {
+      if (operation.type === 'retry-create-waybill') {
+        if (current.spfCode !== 'SPF-0102') {
+          throw new Error('Chỉ có thể tạo lại vận đơn khi lần tạo trước thất bại.');
+        }
+        next = {
+          ...next,
+          spfCode: 'SPF-0301',
+          status: 'Chờ lấy hàng',
+          syncStatus: 'SYNCED',
+        };
+      } else if (operation.type === 'request-pickup-retry') {
+        if (current.spfCode !== 'SPF-0402') {
+          throw new Error('Chỉ có thể lấy lại hàng sau khi lấy hàng thất bại.');
+        }
+        next = {
+          ...next,
+          spfCode: 'SPF-0403',
+          status: 'Đang yêu cầu lấy lại',
+          pickupAttempts: (current.pickupAttempts || 0) + 1,
+        };
+      } else if (operation.type === 'request-redelivery') {
         if (current.spfCode !== 'SPF-0802') {
           throw new Error('Trạng thái Order đã thay đổi và không còn cho phép yêu cầu giao lại.');
         }
         next = { ...next, spfCode: 'SPF-0803', status: 'Đang yêu cầu giao lại' };
       } else if (operation.type === 'request-return') {
-        if (current.spfCode !== 'SPF-0802') {
-          throw new Error('Chỉ có thể yêu cầu chuyển hoàn sau khi giao hàng thất bại.');
+        const returnableCodes: SpfStatusCode[] = ['SPF-0702', 'SPF-0801', 'SPF-0802', 'SPF-0803'];
+        if (!returnableCodes.includes(current.spfCode)) {
+          throw new Error('Trạng thái Order hiện tại không cho phép yêu cầu chuyển hoàn.');
         }
         next = {
           ...next,
@@ -1082,12 +1221,11 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
           returnConfirmedAt: new Date().toISOString(),
         };
       } else if (operation.type === 'change-carrier') {
-        const phase = getSpfLifecyclePhase(current.spfCode);
-        if (['delivered', 'returned', 'cancelled'].includes(phase)) {
-          throw new Error('Không thể đổi NVC khi Order đã kết thúc.');
+        if (!['SPF-0501', 'SPF-0502'].includes(current.spfCode)) {
+          throw new Error('Chỉ có thể đổi NVC khi Order đang ở giai đoạn NVC nhận hàng.');
         }
         const fromCarrier = current.shippingInfo?.deliveryCarrier || current.selectedCarrier || 'Chưa gán';
-        if (fromCarrier === operation.carrier) {
+        if (fromCarrier.trim().toLocaleLowerCase('vi') === operation.carrier.trim().toLocaleLowerCase('vi')) {
           throw new Error('NVC mới phải khác NVC đang phụ trách.');
         }
         next = {

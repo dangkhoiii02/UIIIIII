@@ -25,10 +25,17 @@ import { useToast } from '@/shared/ui/toast-context';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { Order, ShippingRoutingInfo, ShippingStageItem } from '../model/types';
-import { getSpfLifecyclePhase, isSpfFailureStatus } from '../model/spf-status-catalog';
+import { getSpfStatusTone } from '../model/spf-status-catalog';
 import { getOrderPermission, type OrderCapability } from '../model/order-permissions';
 
-export type OrderAction = 'detail' | 'support' | 'copy' | 'edit' | 'print' | 'cancel';
+export type OrderAction =
+  | 'detail'
+  | 'carrier'
+  | 'support'
+  | 'copy'
+  | 'edit'
+  | 'print'
+  | 'cancel';
 
 // Exported for the status-label unit test; this file otherwise renders the order table.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -103,7 +110,9 @@ function formatCarrierUpdatedAt(value?: string) {
 function renderCarrierLogo(carrier: string, isSuperShip?: boolean) {
   const name = (carrier || '').toLowerCase();
 
-  if (isSuperShip || name.includes('super')) {
+  // Tên NVC của từng chặng là nguồn sự thật. Không dùng cờ isSuperShip cũ để
+  // ghi đè logo Green SM/Grab/GHN... trên các đơn giao trực tiếp.
+  if (name.includes('super')) {
     return (
       <div className="carrier-brand-logo supership" title="SuperShip (Đơn vị chủ quản)">
         <img src="/carriers/supership.jpg" alt="SuperShip" className="carrier-brand-img" />
@@ -183,43 +192,41 @@ function renderCarrierLogo(carrier: string, isSuperShip?: boolean) {
     );
   }
 
-  return null;
+  return (
+    <div
+      className={`carrier-brand-logo generic ${isSuperShip ? 'supership-fallback' : ''}`}
+      title={carrier || 'Nhà vận chuyển'}
+    >
+      <Truck size={16} aria-hidden="true" />
+    </div>
+  );
 }
 
 function hasCarrierIcon(carrier: string, isSuperShip?: boolean) {
-  const name = (carrier || '').toLowerCase();
-  return Boolean(
-    isSuperShip ||
-    name.includes('super') ||
-    name.includes('green sm') ||
-    name.includes('greensm') ||
-    name.includes('grab') ||
-    name.includes('spx') ||
-    name.includes('shopee') ||
-    name.includes('j&t') ||
-    name.includes('jnt') ||
-    name.includes('ghn') ||
-    name.includes('nhanh') ||
-    name.includes('best') ||
-    name.includes('ghtk') ||
-    name.includes('tiết kiệm') ||
-    name.includes('viettel') ||
-    name.includes('vtp') ||
-    name.includes('vietnam post') ||
-    name.includes('vietnampost') ||
-    name.includes('vnpost'),
-  );
+  return Boolean(carrier || isSuperShip);
 }
 
 function getShippingStages(
   shipping?: ShippingRoutingInfo,
   includeFinalReturn = false,
 ): ShippingStageItem[] {
+  const normalizeStage = (stage: ShippingStageItem): ShippingStageItem => ({
+    ...stage,
+    isSuperShip: stage.carrier.toLocaleLowerCase('vi').includes('super'),
+    title:
+      stage.key === 'pickup'
+        ? 'Lấy'
+        : stage.key === 'delivery'
+          ? 'Giao'
+          : stage.key === 'return'
+            ? 'Hoàn'
+            : 'Trả cuối',
+  });
   if (!shipping) {
     return [
       {
         key: 'pickup',
-        title: 'Chuyển',
+        title: 'Lấy',
         carrier: 'SuperShip',
         tracking: 'STGS983262LM.826941741',
         isSuperShip: true,
@@ -238,50 +245,43 @@ function getShippingStages(
 
   // Nếu đã có cấu hình stages cụ thể
   if (shipping.stages && shipping.stages.length > 0) {
-    if (includeFinalReturn) return shipping.stages.slice(0, 4);
-    // Luôn chuẩn hóa: tối đa 3 chặng (Chuyển -> Giao -> Hoàn), không sinh ra thêm
-    if (shipping.stages.length > 3) {
-      const stages = shipping.stages;
-      const pickupStage = stages.find((s) => s.key === 'pickup') || stages[0];
-      const deliveryStage = stages.find((s) => s.key === 'delivery') || stages[1];
-      const returnStage =
-        stages.find(
-          (s) =>
-            (s.key === 'refund' || s.key === 'return') &&
-            s.carrier !== (deliveryStage ? deliveryStage.carrier : ''),
-        ) || stages[stages.length - 1];
-
-      return [
-        {
-          key: 'pickup',
-          title: 'Chuyển',
-          carrier: pickupStage?.carrier || 'SuperShip',
-          tracking: pickupStage?.tracking || '',
-          isSuperShip: true,
-          status: 'completed',
-        },
-        {
-          key: 'delivery',
-          title: 'Giao',
-          carrier: deliveryStage?.carrier || 'BEST Express',
-          tracking: deliveryStage?.tracking || '',
-          isSuperShip: false,
-          status: returnStage?.status === 'pending' ? 'active' : deliveryStage?.status || 'active',
-        },
-        {
-          key: 'return',
-          title: 'Hoàn',
-          carrier: returnStage?.carrier || 'SuperShip',
-          tracking: returnStage?.tracking || '',
-          isSuperShip: true,
-          status: returnStage?.status || 'pending',
-        },
-      ];
-    }
-    return shipping.stages;
+    const stages = shipping.stages;
+    const pickupStage = stages.find((stage) => stage.key === 'pickup') || {
+      key: 'pickup' as const,
+      title: 'Lấy',
+      carrier: shipping.pickupCarrier || 'SuperShip',
+      tracking: shipping.pickupTracking || '',
+      isSuperShip: true,
+      status: shipping.currentStage === 'pickup' ? ('active' as const) : ('completed' as const),
+      carrierStatusText:
+        shipping.currentStage === 'pickup' ? 'Đang xử lý chặng lấy' : 'Đã kết thúc chặng lấy',
+    };
+    const deliveryStage = stages.find((stage) => stage.key === 'delivery') || {
+      key: 'delivery' as const,
+      title: 'Giao',
+      carrier: shipping.deliveryCarrier || 'Chưa xác định NVC giao',
+      tracking: shipping.deliveryTracking || '',
+      status:
+        shipping.currentStage === 'pickup'
+          ? ('pending' as const)
+          : shipping.currentStage === 'completed'
+            ? ('completed' as const)
+            : ('active' as const),
+      carrierStatusText:
+        shipping.currentStage === 'pickup' ? 'Chưa đến chặng giao' : shipping.carrierStatusText,
+    };
+    const normalized: ShippingStageItem[] = [
+      normalizeStage(pickupStage),
+      normalizeStage(deliveryStage),
+    ];
+    const returnStage = stages.find((stage) => stage.key === 'return');
+    const finalReturnStage = stages.find((stage) => stage.key === 'refund');
+    if (returnStage) normalized.push(normalizeStage(returnStage));
+    if (includeFinalReturn && finalReturnStage) normalized.push(normalizeStage(finalReturnStage));
+    return normalized;
   }
 
-  // Nếu đơn có luồng chuyển hoàn -> đúng 3 chặng chuẩn: Chuyển -> Giao -> Hoàn
+  // Nếu đơn có luồng chuyển hoàn -> đúng 3 chặng chuẩn: Lấy -> Giao -> Hoàn
   if (shipping.returnCarrier || shipping.refundCarrier) {
     const isCompleted = shipping.currentStage === 'completed';
     const isReturnLegActive =
@@ -290,7 +290,7 @@ function getShippingStages(
     return [
       {
         key: 'pickup',
-        title: 'Chuyển',
+        title: 'Lấy',
         carrier: shipping.pickupCarrier || 'SuperShip',
         tracking: shipping.pickupTracking || 'STGS983262LM.826941741',
         isSuperShip: true,
@@ -317,11 +317,11 @@ function getShippingStages(
     ];
   }
 
-  // Đơn giao hàng bình thường: 2 chặng: Chuyển -> Giao
+  // Đơn giao hàng bình thường: 2 chặng: Lấy -> Giao
   return [
     {
       key: 'pickup',
-      title: 'Chuyển',
+      title: 'Lấy',
       carrier: shipping.pickupCarrier || 'SuperShip',
       tracking: shipping.pickupTracking || 'STGS983262LM.826941741',
       isSuperShip: true,
@@ -363,21 +363,29 @@ function getTrackingSlots(stages: ShippingStageItem[]) {
   ].filter(({ stage }) => Boolean(stage?.tracking));
 }
 
-const actions = [
+const shopActions = [
   { key: 'detail', title: 'Chi tiết', Icon: Eye },
   { key: 'support', title: 'Gửi yêu cầu hỗ trợ', Icon: Send },
-  { key: 'copy', title: 'Tạo lại', Icon: RotateCw },
+  { key: 'copy', title: 'Tạo lại đơn', Icon: RotateCw },
   { key: 'edit', title: 'Sửa đơn', Icon: Pencil },
   { key: 'print', title: 'In đơn', Icon: Printer },
   { key: 'cancel', title: 'Hủy đơn', Icon: X },
 ] as const;
 
+const internalActions = [
+  { key: 'detail', title: 'Xem chi tiết vận hành', Icon: Eye },
+  { key: 'carrier', title: 'Vận hành nhà vận chuyển', Icon: Truck },
+  { key: 'support', title: 'Xử lý yêu cầu', Icon: Send },
+  { key: 'print', title: 'In nhãn', Icon: Printer },
+] as const;
+
 const ACTION_CAPABILITY: Record<OrderAction, OrderCapability | null> = {
   detail: 'view_order',
+  carrier: 'view_raw_carrier_status',
   support: 'request_support',
   copy: null,
   edit: 'edit_order',
-  print: 'view_order',
+  print: 'print_label',
   cancel: 'cancel_order',
 };
 
@@ -421,7 +429,7 @@ export function OrderTable({
   const notify = useToast();
   const [visiblePhones, setVisiblePhones] = useState<Record<string, boolean>>({});
   const [journeyModalOrder, setJourneyModalOrder] = useState<Order | null>(null);
-  const rowActions = isInternal ? actions.filter((action) => action.key !== 'copy') : actions;
+  const rowActions = isInternal ? internalActions : shopActions;
 
   const handleCopy = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -919,15 +927,7 @@ export function OrderTable({
                   <td className="order-status-column" style={{ paddingTop: 14 }}>
                     <div className="order-status-stack">
                       <span
-                        className={`status ${
-                          order.spfCode === 'SPF-0201'
-                            ? 'status-cancelled'
-                            : isSpfFailureStatus(order.spfCode)
-                              ? 'status-failed'
-                              : getSpfLifecyclePhase(order.spfCode) === 'return'
-                                ? 'status-returning'
-                                : ''
-                        }`}
+                        className={`status status-${getSpfStatusTone(order.spfCode)}`}
                       >
                         {order.status}
                       </span>
@@ -938,8 +938,9 @@ export function OrderTable({
                   <td className="order-actions-column">
                     <div className="row-actions">
                       {rowActions.map(({ key, title, Icon }) => {
+                        if (isInternal && key === 'support' && !order.supportStatus) return null;
                         const capability = ACTION_CAPABILITY[key];
-                        const decision = capability
+                          const decision = capability
                           ? getOrderPermission(
                               isInternal
                                 ? { kind: 'internal' }
@@ -947,16 +948,22 @@ export function OrderTable({
                               order,
                               capability,
                             )
-                          : { allowed: true, reason: undefined };
+                          : { allowed: true, mode: 'direct' as const, reason: undefined };
+                        if (!decision.allowed) return null;
+                        const actionTitle =
+                          decision.mode === 'request_support' && key === 'edit'
+                            ? 'Yêu cầu hỗ trợ sửa đơn'
+                            : decision.mode === 'request_support' && key === 'cancel'
+                              ? 'Yêu cầu hỗ trợ hủy đơn'
+                              : title;
                         return (
                           <button
                             key={key}
                             type="button"
                             className="action-btn-circle"
-                            title={decision.allowed ? title : undefined}
-                            aria-label={decision.allowed ? title : `${title} không khả dụng`}
+                            title={actionTitle}
+                            aria-label={actionTitle}
                             onClick={() => onAction(key, order)}
-                            disabled={!decision.allowed}
                           >
                             <Icon size={13} />
                           </button>
@@ -1024,7 +1031,7 @@ export function OrderTable({
               </div>
             </div>
 
-            {/* Stepper trực quan 3 chặng: Chuyển -> Giao -> Hoàn */}
+            {/* Stepper trực quan: Lấy -> Giao -> Hoàn -> Trả cuối */}
             <div className="journey-modal-stepper">
               {getShippingStages(journeyModalOrder.shippingInfo, isInternal)
                 .filter((stage) => hasCarrierIcon(stage.carrier, stage.isSuperShip))
