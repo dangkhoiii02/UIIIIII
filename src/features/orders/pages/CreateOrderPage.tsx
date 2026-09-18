@@ -1,37 +1,56 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { BookOpen } from 'lucide-react';
 import { HelpDialog } from '@/shared/ui/HelpDialog';
 import { useToast } from '@/shared/ui/toast-context';
 import { RecipientFields } from '../components/RecipientFields';
 import { ParcelFields } from '../components/ParcelFields';
-import { FeeSummary } from '../components/FeeSummary';
+import {
+  ShippingCheckoutPanel,
+  type CustomerApplication,
+} from '../components/ShippingCheckoutPanel';
 import { defaultOrderInput, type OrderInput } from '../model/types';
 import { validateOrder } from '../model/order';
 import { useOrders } from '../model/orders-context';
 import { EditOrderView } from '../components/EditOrderView';
-function OrderForm({ initial, editId }: { initial: OrderInput; editId?: string }) {
+function OrderForm({
+  initial,
+  editId,
+  initialApplication,
+}: {
+  initial: OrderInput;
+  editId?: string;
+  initialApplication: CustomerApplication;
+}) {
   const [value, setValue] = useState<OrderInput>(initial);
+  const customerApplication = initialApplication;
   const [agreed, setAgreed] = useState(true);
   const [help, setHelp] = useState(false);
   const { createOrders, updateOrder } = useOrders();
   const navigate = useNavigate();
   const notify = useToast();
-  const update = (patch: Partial<OrderInput>) => setValue((current) => ({ ...current, ...patch }));
+  const update = useCallback(
+    (patch: Partial<OrderInput>) => setValue((current) => ({ ...current, ...patch })),
+    [],
+  );
   const errors = validateOrder(value);
   return (
     <>
-      <h1>
-        {editId ? 'Chỉnh sửa đơn hàng' : 'Tạo đơn hàng'}{' '}
-        <button
-          type="button"
-          className="badge-blue"
-          aria-label="Hướng dẫn tạo đơn"
-          onClick={() => setHelp(true)}
-        >
-          <BookOpen size={20} />
-        </button>
-      </h1>
+      <div className="create-order-heading">
+        <div>
+          <h1>
+            {editId ? 'Chỉnh sửa đơn hàng' : 'Tạo đơn hàng'}{' '}
+            <button
+              type="button"
+              className="badge-blue"
+              aria-label="Hướng dẫn tạo đơn"
+              onClick={() => setHelp(true)}
+            >
+              <BookOpen size={20} />
+            </button>
+          </h1>
+        </div>
+      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -54,13 +73,14 @@ function OrderForm({ initial, editId }: { initial: OrderInput; editId?: string }
             <RecipientFields value={value} onChange={update} />
             <ParcelFields value={value} onChange={update} />
           </div>
-          <FeeSummary
+          <ShippingCheckoutPanel
             value={value}
             onChange={update}
             agreed={agreed}
             setAgreed={setAgreed}
             valid={!errors.length}
             editing={!!editId}
+            customerApplication={customerApplication}
           />
         </div>
       </form>
@@ -74,6 +94,8 @@ export default function CreateOrderPage() {
   const navigate = useNavigate();
   const { orders, updateOrder } = useOrders();
   const editId = params.get('edit') ?? undefined;
+  const initialApplication: CustomerApplication =
+    params.get('customer') === 'superai' ? 'superai' : 'supership';
   const sourceId = editId ?? params.get('copy');
   const source = orders.find((order) => order.id === sourceId);
 
@@ -99,7 +121,7 @@ export default function CreateOrderPage() {
       key={sourceId ?? 'new'}
       initial={source ?? { ...defaultOrderInput }}
       editId={editId}
+      initialApplication={initialApplication}
     />
   );
 }
-

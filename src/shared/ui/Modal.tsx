@@ -31,13 +31,15 @@ export function Modal({
         {title}
       </div>
       <div className="modal-body">{children}</div>
-      <div className="modal-foot">
-        {footer ?? (
-          <Button variant="primary" onClick={onClose}>
-            Đóng
-          </Button>
-        )}
-      </div>
+      {footer !== null && (
+        <div className="modal-foot">
+          {footer ?? (
+            <Button variant="primary" onClick={onClose}>
+              Đóng
+            </Button>
+          )}
+        </div>
+      )}
     </dialog>
   );
 }

@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 680" width="920" height="680">
+  <defs>
+    <style>
+      .title { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; fill: #0f172a; }
+      .sub { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; fill: #64748b; }
+      .stage-title { font-family: 'Inter', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0f172a; }
+      .carrier-tag-text { font-family: 'Inter', system-ui, sans-serif; font-size: 11.5px; font-weight: 600; fill: #475569; }
+      .badge-text-done { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 600; fill: #047857; }
+      .badge-text-warn { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 600; fill: #b45309; }
+      .cardlet { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; rx: 10px; }
+      .banner-red { fill: #fef2f2; rx: 6px; }
+      .banner-text { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; font-weight: 700; fill: #dc2626; text-transform: uppercase; letter-spacing: 0.5px; }
+    </style>
+  </defs>
+
+  <rect width="920" height="680" fill="#f8fafc"/>
+
+  <!-- Header -->
+  <text x="32" y="44" class="title" font-size="22">Order Stage Cardlets — 2-Row Anti-Collision Architecture</text>
+  <text x="32" y="66" class="sub">Thiết kế thẻ chặng hành trình 2 dòng độc lập, tính toán pixel chuẩn xác loại bỏ 100% hiện tượng đè chữ</text>
+
+  <g transform="translate(32, 90)">
+    <!-- Column 1: Chặng 1 Lấy hàng (Done - Collapsed) -->
+    <g transform="translate(0, 0)">
+      <!-- Flow Banner -->
+      <rect width="400" height="26" class="banner-red"/>
+      <rect x="0" y="0" width="4" height="26" rx="2" fill="#E11D48"/>
+      <text x="16" y="17" class="banner-text">LẤY HÀNG</text>
+
+      <!-- Stepper & Line -->
+      <g transform="translate(10, 42)">
+        <circle cx="14" cy="14" r="14" fill="#16A34A"/>
+        <g transform="translate(6, 6) scale(0.6666666666666666)" color="#FFFFFF"><path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+        <line x1="14" y1="36" x2="14" y2="76" stroke="#CBD5E1" stroke-width="2"/>
+      </g>
+
+      <!-- Cardlet Box (2-Row Design) -->
+      <g transform="translate(50, 36)">
+        <rect width="350" height="64" class="cardlet"/>
+
+        <!-- Row 1: Title + Chevron -->
+        <g transform="translate(14, 20)">
+          <text x="0" y="0" class="stage-title">Chặng 1: Lấy hàng</text>
+          <g transform="translate(305, -12) scale(0.6666666666666666)" color="#64748B"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+        </g>
+
+        <!-- Row 2: Carrier Tag + Status Badge -->
+        <g transform="translate(14, 38)">
+          <!-- Left: Carrier -->
+          <rect width="95" height="18" rx="4" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+          <text x="8" y="13" class="carrier-tag-text">NVC: SuperShip</text>
+
+          <!-- Right: Status Badge (Green Done) -->
+          <g transform="translate(145, 0)">
+            <rect width="175" height="18" rx="9" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1"/>
+            <text x="10" y="13" class="badge-text-done">Đã bàn giao nhà vận chuyển khác</text>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- Column 2: Chặng 2 Giao hàng (Warning - Collapsed) -->
+    <g transform="translate(0, 130)">
+      <!-- Flow Banner -->
+      <rect width="400" height="26" class="banner-red"/>
+      <rect x="0" y="0" width="4" height="26" rx="2" fill="#E11D48"/>
+      <text x="16" y="17" class="banner-text">GIAO HÀNG</text>
+
+      <!-- Stepper & Line -->
+      <g transform="translate(10, 42)">
+        <circle cx="14" cy="14" r="14" fill="#FEF3C7"/>
+        <text x="10" y="19" font-family="'Inter', sans-serif" font-size="14" font-weight="800" fill="#D97706">!</text>
+        <line x1="14" y1="36" x2="14" y2="76" stroke="#CBD5E1" stroke-width="2"/>
+      </g>
+
+      <!-- Cardlet Box (2-Row Design) -->
+      <g transform="translate(50, 36)">
+        <rect width="350" height="64" class="cardlet"/>
+
+        <!-- Row 1: Title + Chevron -->
+        <g transform="translate(14, 20)">
+          <text x="0" y="0" class="stage-title">Chặng 2: Giao hàng</text>
+          <g transform="translate(305, -12) scale(0.6666666666666666)" color="#64748B"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+        </g>
+
+        <!-- Row 2: Carrier Tag + Status Badge -->
+        <g transform="translate(14, 38)">
+          <!-- Left: Carrier -->
+          <rect width="88" height="18" rx="4" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+          <text x="8" y="13" class="carrier-tag-text">NVC: BEST</text>
+
+          <!-- Right: Status Badge (Yellow Warn) -->
+          <g transform="translate(155, 0)">
+            <rect width="165" height="18" rx="9" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1"/>
+            <text x="10" y="13" class="badge-text-warn">Giao hàng không thành công</text>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- Column 3: Chặng 3 Hoàn hàng (Expanded with Event List) -->
+    <g transform="translate(440, 0)">
+      <!-- Flow Banner -->
+      <rect width="416" height="26" class="banner-red"/>
+      <rect x="0" y="0" width="4" height="26" rx="2" fill="#E11D48"/>
+      <text x="16" y="17" class="banner-text">HOÀN HÀNG · LẤY HÀNG → GIAO HÀNG</text>
+
+      <!-- Stepper -->
+      <g transform="translate(10, 42)">
+        <circle cx="14" cy="14" r="14" fill="#FEF3C7"/>
+        <text x="10" y="19" font-family="'Inter', sans-serif" font-size="14" font-weight="800" fill="#D97706">!</text>
+      </g>
+
+      <!-- Cardlet Box (Expanded) -->
+      <g transform="translate(50, 36)">
+        <rect width="366" height="420" class="cardlet"/>
+
+        <!-- Header Part (2-Row) -->
+        <rect width="366" height="64" rx="10" fill="#FAFAFA"/>
+        <line x1="0" y1="64" x2="366" y2="64" stroke="#F1F5F9" stroke-width="1"/>
+
+        <!-- Row 1: Title + ChevronUp -->
+        <g transform="translate(14, 22)">
+          <text x="0" y="0" class="stage-title">Chặng 3: Hoàn hàng</text>
+          <g transform="translate(320, -12) scale(0.6666666666666666)" color="#64748B"><path d="m18 15-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+        </g>
+
+        <!-- Row 2: Carrier Tag + Status Badge -->
+        <g transform="translate(14, 40)">
+          <rect width="95" height="18" rx="4" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+          <text x="8" y="13" class="carrier-tag-text">NVC: SuperShip</text>
+
+          <g transform="translate(145, 0)">
+            <rect width="190" height="18" rx="9" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1"/>
+            <text x="10" y="13" class="badge-text-warn">Xuất hàng khỏi trung tâm...</text>
+          </g>
+        </g>
+
+        <!-- Expanded Event List Body -->
+        <g transform="translate(16, 80)">
+          <!-- Event Line 1 -->
+          <g transform="translate(0, 0)">
+            <circle cx="5" cy="8" r="4" fill="#D97706"/>
+            <text x="18" y="10" font-family="'Inter', sans-serif" font-size="12" font-weight="700" fill="#0F172A">SuperShip <tspan font-weight="400" fill="#475569">— Xuất hàng khỏi trung tâm</tspan></text>
+            <text x="250" y="10" font-family="'Inter', sans-serif" font-size="11" fill="#64748B">26/08 - 14:15</text>
+            <!-- Meta tags -->
+            <g transform="translate(18, 16)">
+              <rect width="45" height="16" rx="8" fill="#EFF6FF" stroke="#BFDBFE"/>
+              <text x="7" y="11" font-family="'Inter', sans-serif" font-size="9" font-weight="700" fill="#2563EB">SHOP</text>
+            </g>
+          </g>
+
+          <line x1="0" y1="46" x2="334" y2="46" stroke="#F1F5F9" stroke-width="1"/>
+
+          <!-- Event Line 2 (Internal Style) -->
+          <g transform="translate(0, 56)">
+            <rect x="-6" y="-6" width="346" height="52" rx="6" fill="#FAF5FF"/>
+            <circle cx="5" cy="8" r="4" fill="#6D28D9"/>
+            <text x="18" y="10" font-family="'Inter', sans-serif" font-size="12" font-weight="700" fill="#0F172A">SuperShip <tspan font-weight="400" fill="#475569">— Nhập kho trung chuyển</tspan></text>
+            <text x="250" y="10" font-family="'Inter', sans-serif" font-size="11" fill="#64748B">26/08 - 11:30</text>
+            <!-- Internal tag & Raw code -->
+            <g transform="translate(18, 16)">
+              <rect width="55" height="16" rx="8" fill="#F5F3FF" stroke="#DDD6FE"/>
+              <text x="7" y="11" font-family="'Inter', sans-serif" font-size="9" font-weight="700" fill="#7C3AED">NỘI BỘ</text>
+              <rect x="62" y="0" width="130" height="16" rx="4" fill="#EDE9FE" stroke="#DDD6FE"/>
+              <text x="68" y="11" font-family="monospace" font-size="9" font-weight="600" fill="#6D28D9">SPF_HUB_INBOUND</text>
+            </g>
+          </g>
+
+          <line x1="0" y1="118" x2="334" y2="118" stroke="#F1F5F9" stroke-width="1"/>
+
+          <!-- Event Line 3 -->
+          <g transform="translate(0, 130)">
+            <circle cx="5" cy="8" r="4" fill="#64748B"/>
+            <text x="18" y="10" font-family="'Inter', sans-serif" font-size="12" font-weight="700" fill="#0F172A">SuperShip <tspan font-weight="400" fill="#475569">— Đã nhận yêu cầu chuyển hoàn</tspan></text>
+            <text x="250" y="10" font-family="'Inter', sans-serif" font-size="11" fill="#64748B">26/08 - 09:00</text>
+            <g transform="translate(18, 16)">
+              <rect width="45" height="16" rx="8" fill="#EFF6FF" stroke="#BFDBFE"/>
+              <text x="7" y="11" font-family="'Inter', sans-serif" font-size="9" font-weight="700" fill="#2563EB">SHOP</text>
+            </g>
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

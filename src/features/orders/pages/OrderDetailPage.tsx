@@ -1,37 +1,1102 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft,
+  ArrowRight,
   Copy,
-  User,
+  Check,
   Package,
-  Store,
   MapPin,
   Receipt,
-  Star,
-  QrCode,
   RotateCcw,
-  MessageSquare,
   Pencil,
   DollarSign,
-  FileEdit,
-  XCircle,
   Printer,
   Info,
   Truck,
   Eye,
   EyeOff,
+  Send,
+  Clock,
+  CircleDot,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Compass,
+  Star,
+  QrCode,
+  History,
+  CheckCircle2,
+  Camera,
+  ShieldCheck,
+  UserRound,
+  ImagePlus,
+  AlertTriangle,
 } from 'lucide-react';
 import { money } from '@/shared/lib/format';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { AsyncStatePanel } from '@/shared/ui/AsyncStatePanel';
 import { useToast } from '@/shared/ui/toast-context';
 import { useOrders } from '../model/orders-context';
 import { SupportDialog } from '@/features/support';
+import { BarcodeSvg, QrCodeSvg } from '@/shared/ui/BarcodeAndQr';
+import { PrintHistoryDrawer } from '../components/PrintHistoryDrawer';
+import type { Order, ShippingStageItem } from '../model/types';
+import type { CarrierWebhookEvent } from '../model/types';
+import { getSpfLifecyclePhase, isSpfFailureStatus } from '../model/spf-status-catalog';
+import {
+  getOrderPermission,
+  type OrderCapability,
+  type OrderViewer,
+} from '../model/order-permissions';
+
+interface TransportLeg {
+  key: ShippingStageItem['key'];
+  role: string;
+  carrier: string;
+  code: string;
+  statusText: string;
+  carrierStatusText: string;
+  state: 'active' | 'passed' | 'upcoming';
+  carrierStatusCode?: string;
+  carrierUpdatedAt?: string;
+  webhookEvents: CarrierWebhookEvent[];
+}
+
+interface JourneyEvent {
+  time: string;
+  label: string;
+  carrier: string;
+  visibility: 'shop' | 'internal';
+  rawCode?: string;
+}
+
+interface JourneyStage {
+  flow: string;
+  name: string;
+  carrier: string;
+  code: string;
+  status: string;
+  state: 'done' | 'current' | 'warn' | 'error' | 'pending';
+  flowNote?: string;
+  events: JourneyEvent[];
+}
+
+interface ActionHistoryItem {
+  id: number;
+  actor: string;
+  stageTag?: string;
+  message: string;
+  time: string;
+  visibility: 'shop' | 'internal';
+  rawMeta?: string;
+}
+
+function renderCarrierLogoDetail(carrier: string) {
+  const name = (carrier || '').toLowerCase();
+
+  if (name.includes('super')) {
+    return (
+      <div className="carrier-brand-logo supership" title="SuperShip (Đơn vị chủ quản)">
+        <img src="/carriers/supership.jpg" alt="SuperShip" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('green sm') || name.includes('greensm')) {
+    return (
+      <div className="carrier-brand-logo green-sm" title="Green SM Express">
+        <img src="/carriers/xanhsm.jpg" alt="Green SM Express" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('grab')) {
+    return (
+      <div className="carrier-brand-logo grab" title="GrabExpress">
+        <img src="/carriers/grab.jpg" alt="GrabExpress" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('spx') || name.includes('shopee')) {
+    return (
+      <div className="carrier-brand-logo spx" title="SPX Express">
+        <img src="/carriers/spx_official.svg" alt="SPX Express" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('j&t') || name.includes('jnt')) {
+    return (
+      <div className="carrier-brand-logo jt" title="J&amp;T Express">
+        <img src="/carriers/jt_official.webp" alt="J&amp;T Express" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('best')) {
+    return (
+      <div className="carrier-brand-logo best" title="BEST Express">
+        <img src="/carriers/BEST.jpg" alt="BEST Express" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('ghn') || name.includes('nhanh')) {
+    return (
+      <div className="carrier-brand-logo ghn" title="Giao Hàng Nhanh (GHN)">
+        <img src="/carriers/ghn.jpg" alt="GHN" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('ghtk') || name.includes('tiết kiệm')) {
+    return (
+      <div className="carrier-brand-logo ghtk" title="Giao Hàng Tiết Kiệm (GHTK)">
+        <img src="/carriers/ghtk_emblem.svg" alt="GHTK" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('viettel') || name.includes('vtp')) {
+    return (
+      <div className="carrier-brand-logo viettelpost" title="Viettel Post">
+        <img src="/carriers/viettel_emblem.png" alt="Viettel Post" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  if (name.includes('vietnam post') || name.includes('vietnampost') || name.includes('vnpost')) {
+    return (
+      <div className="carrier-brand-logo vnpost" title="Vietnam Post">
+        <img src="/carriers/vnp.jpg" alt="Vietnam Post" className="carrier-brand-img" />
+      </div>
+    );
+  }
+  return null;
+}
+
+function hasCarrierIconDetail(carrier: string) {
+  const name = (carrier || '').toLowerCase();
+  return Boolean(
+    name.includes('super') ||
+    name.includes('green sm') ||
+    name.includes('greensm') ||
+    name.includes('grab') ||
+    name.includes('spx') ||
+    name.includes('shopee') ||
+    name.includes('j&t') ||
+    name.includes('jnt') ||
+    name.includes('best') ||
+    name.includes('ghn') ||
+    name.includes('nhanh') ||
+    name.includes('ghtk') ||
+    name.includes('tiết kiệm') ||
+    name.includes('viettel') ||
+    name.includes('vtp') ||
+    name.includes('vietnam post') ||
+    name.includes('vietnampost') ||
+    name.includes('vnpost'),
+  );
+}
+
+function getDetailTransportLegs(order: Order): TransportLeg[] {
+  const shipping = order.shippingInfo;
+  if (!shipping) return [];
+
+  const fallbackStages: Array<ShippingStageItem | null> = [
+    shipping.pickupCarrier || shipping.pickupTracking
+      ? {
+          key: 'pickup' as const,
+          title: 'Lấy',
+          carrier: shipping.pickupCarrier || 'SuperShip',
+          tracking: shipping.pickupTracking || '',
+          status: shipping.currentStage === 'pickup' ? ('active' as const) : ('completed' as const),
+        }
+      : null,
+    shipping.deliveryCarrier || shipping.deliveryTracking
+      ? {
+          key: 'delivery' as const,
+          title: 'Giao',
+          carrier: shipping.deliveryCarrier || '',
+          tracking: shipping.deliveryTracking || '',
+          status:
+            shipping.currentStage === 'delivery'
+              ? ('active' as const)
+              : shipping.currentStage === 'pickup'
+                ? ('pending' as const)
+                : ('completed' as const),
+        }
+      : null,
+    shipping.returnCarrier || shipping.returnTracking
+      ? {
+          key: 'return' as const,
+          title: 'Hoàn',
+          carrier: shipping.returnCarrier || '',
+          tracking: shipping.returnTracking || '',
+          status:
+            shipping.currentStage === 'return'
+              ? ('active' as const)
+              : shipping.currentStage === 'completed'
+                ? ('completed' as const)
+                : ('pending' as const),
+        }
+      : null,
+  ];
+  const stages: ShippingStageItem[] = shipping.stages?.length
+    ? shipping.stages
+    : fallbackStages.filter((stage): stage is ShippingStageItem => stage !== null);
+
+  const roleByKey: Record<ShippingStageItem['key'], string> = {
+    pickup: 'Lấy hàng',
+    delivery: 'Giao hàng',
+    return: 'Hoàn hàng',
+    refund: 'Trả hàng',
+  };
+
+  return stages.map((stage) => {
+    const state: TransportLeg['state'] =
+      stage.status === 'completed' ? 'passed' : stage.status === 'active' ? 'active' : 'upcoming';
+    const statusText =
+      order.spfCode === 'SPF-0201'
+        ? 'Đã hủy'
+        : stage.status === 'completed'
+          ? 'Đã hoàn tất'
+          : stage.status === 'active'
+            ? isSpfFailureStatus(order.spfCode)
+              ? order.status
+              : 'Đang xử lý'
+            : 'Chưa bắt đầu';
+    const fallbackCarrierStatus: Record<
+      ShippingStageItem['key'],
+      Record<'completed' | 'active' | 'pending', string>
+    > = {
+      pickup: {
+        completed: 'Đã hoàn tất chặng lấy hàng',
+        active: 'Đang thực hiện lấy hàng',
+        pending: 'Chờ tiếp nhận lấy hàng',
+      },
+      delivery: {
+        completed: 'Đã kết thúc chặng giao hàng',
+        active: 'Đang thực hiện giao hàng',
+        pending: 'Chờ tiếp nhận giao hàng',
+      },
+      return: {
+        completed: 'Đã hoàn tất chặng hoàn hàng',
+        active: 'Đang thực hiện hoàn hàng',
+        pending: 'Chờ tiếp nhận hoàn hàng',
+      },
+      refund: {
+        completed: 'Đã trả hàng về điểm cuối',
+        active: 'Đang trả hàng về điểm cuối',
+        pending: 'Chờ thực hiện trả hàng cuối',
+      },
+    };
+    const stageState = stage.status || 'pending';
+    const resolvedCarrierStatus =
+      stage.carrierStatusText ||
+      (stageState === 'active' ? order.status : fallbackCarrierStatus[stage.key][stageState]);
+    const normalizedStage: ShippingStageItem = {
+      ...stage,
+      carrierStatusText: resolvedCarrierStatus,
+      carrierStatusCode:
+        stage.carrierStatusCode || `${stage.key.toUpperCase()}-${stageState.toUpperCase()}`,
+      carrierUpdatedAt: stage.carrierUpdatedAt || order.updatedAt || order.createdAt,
+    };
+    const carrierEvents = stage.webhookEvents?.length
+      ? stage.webhookEvents
+      : buildFallbackWebhookEvents(order, normalizedStage, resolvedCarrierStatus);
+    const latestCarrierEvent = carrierEvents[0];
+
+    return {
+      key: stage.key,
+      role: roleByKey[stage.key],
+      carrier: stage.carrier,
+      code: stage.tracking,
+      statusText,
+      carrierStatusText: latestCarrierEvent?.statusText || resolvedCarrierStatus,
+      state,
+      carrierStatusCode: latestCarrierEvent?.statusCode || normalizedStage.carrierStatusCode,
+      carrierUpdatedAt: latestCarrierEvent?.eventAt || normalizedStage.carrierUpdatedAt,
+      webhookEvents: carrierEvents,
+    };
+  });
+}
+
+function buildFallbackWebhookEvents(
+  order: Order,
+  stage: ShippingStageItem,
+  statusText: string,
+): CarrierWebhookEvent[] {
+  const updatedAt = stage.carrierUpdatedAt || order.updatedAt || order.createdAt;
+  const carrierCode = stage.carrierStatusCode || `${stage.key.toUpperCase()}-STATUS`;
+  const rawStatus = stage.carrierStatusText || statusText;
+  const requestPrefix = `${stage.carrier.replace(/[^A-Za-z0-9]/g, '').toUpperCase()}-${stage.key.toUpperCase()}`;
+  const progressByStage: Record<
+    ShippingStageItem['key'],
+    Array<
+      Pick<CarrierWebhookEvent, 'statusCode' | 'statusText' | 'mappedSpfCode' | 'mappedSpfStatus'>
+    >
+  > = {
+    pickup: [
+      {
+        statusCode: 'PICKUP-ACCEPTED',
+        statusText: 'Đã tiếp nhận yêu cầu lấy hàng',
+        mappedSpfCode: 'SPF-0301',
+        mappedSpfStatus: 'Chờ lấy hàng',
+      },
+      {
+        statusCode: 'PICKUP-IN-PROGRESS',
+        statusText: 'Tài xế đang đến điểm lấy',
+        mappedSpfCode: 'SPF-0401',
+        mappedSpfStatus: 'Đang lấy hàng',
+      },
+    ],
+    delivery: [
+      {
+        statusCode: 'DELIVERY-RECEIVED',
+        statusText: 'Đã nhận kiện từ NVC lấy',
+        mappedSpfCode: 'SPF-0605',
+        mappedSpfStatus: 'NVC giao đã nhận hàng',
+      },
+      {
+        statusCode: 'DELIVERY-IN-TRANSIT',
+        statusText: 'Đang luân chuyển đến bưu cục giao',
+        mappedSpfCode: 'SPF-0701',
+        mappedSpfStatus: 'Đang trung chuyển',
+      },
+    ],
+    return: [
+      {
+        statusCode: 'RETURN-CONFIRMED',
+        statusText: 'Đã xác nhận yêu cầu chuyển hoàn',
+        mappedSpfCode: 'SPF-1002',
+        mappedSpfStatus: 'Đã xác nhận chuyển hoàn',
+      },
+      {
+        statusCode: 'RETURN-PICKED',
+        statusText: 'Đã lấy kiện hàng hoàn',
+        mappedSpfCode: 'SPF-1007',
+        mappedSpfStatus: 'Đã lấy hàng hoàn',
+      },
+    ],
+    refund: [
+      {
+        statusCode: 'FINAL-RETURN-ACCEPTED',
+        statusText: 'NVC hoàn cuối đã nhận kiện',
+        mappedSpfCode: 'SPF-1104',
+        mappedSpfStatus: 'Đã trả cho NVC hoàn cuối',
+      },
+      {
+        statusCode: 'FINAL-RETURN-AT-HUB',
+        statusText: 'Kiện đã đến kho trả cuối',
+        mappedSpfCode: 'SPF-1105',
+        mappedSpfStatus: 'Đã đến kho trả cuối',
+      },
+    ],
+  };
+
+  const history =
+    stage.status === 'pending'
+      ? progressByStage[stage.key].slice(0, 1)
+      : [
+          ...progressByStage[stage.key],
+          {
+            statusCode: carrierCode,
+            statusText: rawStatus,
+            mappedSpfCode: order.spfCode,
+            mappedSpfStatus: order.status,
+          },
+        ];
+  const baseTime = new Date(updatedAt);
+
+  return history
+    .map((event, index) => {
+      const minutesBefore = (history.length - index - 1) * 35;
+      const eventTime = Number.isNaN(baseTime.getTime())
+        ? updatedAt
+        : new Date(baseTime.getTime() - minutesBefore * 60_000).toISOString();
+      const receivedTime = Number.isNaN(baseTime.getTime())
+        ? updatedAt
+        : new Date(new Date(eventTime).getTime() + 45_000).toISOString();
+
+      return {
+        id: `${stage.key}-${index}`,
+        receivedAt: receivedTime,
+        eventAt: eventTime,
+        statusCode: event.statusCode,
+        statusText: event.statusText,
+        mappedSpfCode: event.mappedSpfCode,
+        mappedSpfStatus: event.mappedSpfStatus,
+        processingStatus:
+          index === history.length - 1 && order.syncStatus === 'FAILED'
+            ? ('failed' as const)
+            : ('processed' as const),
+        requestId: `${requestPrefix}-${order.id.slice(-6)}-${index + 1}`,
+        location: stage.status === 'pending' ? undefined : 'Bưu cục khai thác của nhà vận chuyển',
+        note:
+          index === history.length - 1 && order.syncStatus === 'FAILED'
+            ? 'Bản cập nhật đã nhận nhưng chưa đồng bộ thành công vào trạng thái đơn.'
+            : undefined,
+        payload: JSON.stringify(
+          {
+            tracking_code: stage.tracking,
+            status_code: event.statusCode,
+            status_name: event.statusText,
+            event_time: eventTime,
+          },
+          null,
+          2,
+        ),
+      };
+    })
+    .reverse();
+}
+
+function getDetailJourneyStages(order: Order): JourneyStage[] {
+  const phase = getSpfLifecyclePhase(order.spfCode);
+  const isReturn =
+    phase === 'return' ||
+    phase === 'returned' ||
+    order.spfCode === 'SPF-0902' ||
+    Boolean(order.shippingInfo?.returnTracking);
+
+  const deliveryCarrier = order.shippingInfo?.deliveryCarrier || 'BEST Express';
+  const pickupCode = order.shippingInfo?.pickupTracking || 'STGS983262LM.826941741';
+  const deliveryCode = order.shippingInfo?.deliveryTracking || '999800060099891';
+  const returnCarrier = order.shippingInfo?.returnCarrier || 'SuperShip';
+  const returnCode = order.shippingInfo?.returnTracking || 'STGS983262LM.826941743';
+
+  if (order.serviceType === 'instant') {
+    const instantStage = order.shippingInfo?.stages?.find((stage) => stage.key === 'delivery');
+    const instantEvents = [...(instantStage?.webhookEvents || [])].sort(
+      (a, b) => new Date(a.eventAt).getTime() - new Date(b.eventAt).getTime(),
+    );
+    const isDelivered = order.instantTracking?.state === 'DELIVERED';
+    const isPickedUp = instantEvents.some((event) => event.statusCode === 'PICKED_UP');
+    const pickupStatusCodes = new Set([
+      'BOOKING_CREATED',
+      'DRIVER_ASSIGNED',
+      'DRIVER_TO_PICKUP',
+      'PICKED_UP',
+    ]);
+    const toJourneyEvent = (event: CarrierWebhookEvent): JourneyEvent => ({
+      time: new Intl.DateTimeFormat('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(event.eventAt)),
+      carrier: instantStage?.carrier || deliveryCarrier,
+      label: event.statusText,
+      visibility: 'shop',
+    });
+    const pickupEvents = instantEvents.filter((event) => pickupStatusCodes.has(event.statusCode));
+    const deliveryEvents = instantEvents.filter((event) => !pickupStatusCodes.has(event.statusCode));
+
+    const instantJourney: JourneyStage[] = [
+      {
+        flow: 'LẤY HÀNG',
+        name: 'Lấy hàng tại Shop',
+        carrier: instantStage?.carrier || deliveryCarrier,
+        code: instantStage?.tracking || deliveryCode,
+        status: isPickedUp ? 'Đã lấy hàng' : 'Đang lấy hàng',
+        state: isPickedUp ? 'done' : 'current',
+        flowNote: 'NVC hỏa tốc lấy trực tiếp tại Shop',
+        events: pickupEvents.map(toJourneyEvent),
+      },
+      {
+        flow: 'GIAO HÀNG',
+        name: 'Giao hàng đến người nhận',
+        carrier: instantStage?.carrier || deliveryCarrier,
+        code: instantStage?.tracking || deliveryCode,
+        status: isDelivered
+          ? 'Đã giao hàng'
+          : isPickedUp
+            ? order.instantTracking?.statusLabel || 'Đang giao hàng'
+            : 'Chưa bắt đầu',
+        state: isDelivered ? 'done' : isPickedUp ? 'current' : 'pending',
+        flowNote: 'Giao trực tiếp, không qua kho SuperShip',
+        events: deliveryEvents.map(toJourneyEvent),
+      },
+    ];
+
+    const returnStage = order.shippingInfo?.stages?.find(
+      (stage) => stage.key === 'return' || stage.key === 'refund',
+    );
+    if (returnStage || order.shippingInfo?.returnTracking || order.shippingInfo?.refundTracking) {
+      instantJourney.push({
+        flow: 'HOÀN HÀNG',
+        name: 'Hoàn hàng về Shop',
+        carrier: returnStage?.carrier || instantStage?.carrier || deliveryCarrier,
+        code:
+          returnStage?.tracking ||
+          order.shippingInfo?.returnTracking ||
+          order.shippingInfo?.refundTracking ||
+          '',
+        status: returnStage?.carrierStatusText || 'Đang hoàn hàng',
+        state: returnStage?.status === 'completed' ? 'done' : 'current',
+        flowNote: 'Phát sinh do giao không thành công',
+        events: [...(returnStage?.webhookEvents || [])]
+          .sort((a, b) => new Date(a.eventAt).getTime() - new Date(b.eventAt).getTime())
+          .map((event) => ({
+            ...toJourneyEvent(event),
+            carrier: returnStage?.carrier || instantStage?.carrier || deliveryCarrier,
+          })),
+      });
+    }
+
+    return instantJourney;
+  }
+
+  if (isReturn) {
+    return [
+      {
+        flow: 'LẤY HÀNG',
+        name: 'Lấy hàng',
+        carrier: 'SuperShip',
+        code: pickupCode,
+        status: 'Đã bàn giao nhà vận chuyển khác',
+        state: 'done',
+        events: [
+          { time: '07:30', carrier: 'SuperShip', label: 'Chờ lấy hàng', visibility: 'shop' },
+          {
+            time: '07:35',
+            carrier: 'SuperPlatform',
+            label: 'SuperPlatform: Phân bổ tài xế lấy hàng khu vực Nam Từ Liêm',
+            visibility: 'internal',
+            rawCode: 'AI-ROUTE-01',
+          },
+          { time: '07:40', carrier: 'SuperShip', label: 'Đang lấy hàng', visibility: 'shop' },
+          {
+            time: '07:55',
+            carrier: 'SuperShip',
+            label: 'Lấy hàng thành công tại địa chỉ Shop',
+            visibility: 'shop',
+          },
+          {
+            time: '08:05',
+            carrier: 'SuperShip',
+            label: 'Nhập kho SuperShip Mễ Trì',
+            visibility: 'shop',
+          },
+          {
+            time: '08:08',
+            carrier: 'SuperShip',
+            label: 'Băng chuyền chia chọn Sort-HN01: Quét mã luồng liên tỉnh',
+            visibility: 'internal',
+            rawCode: 'SORT-B1-SCAN',
+          },
+          {
+            time: '08:10',
+            carrier: 'SuperShip',
+            label: 'Chờ bàn giao cho NVC giao (Lập biên bản BB-SPS-2608)',
+            visibility: 'internal',
+            rawCode: 'BB-SPS-2608',
+          },
+          {
+            time: '08:31',
+            carrier: 'SuperShip',
+            label: 'Đã bàn giao nhà vận chuyển khác',
+            visibility: 'shop',
+          },
+          {
+            time: '08:32',
+            carrier: 'SuperPlatform',
+            label: `Giao thức SPF: Gửi gói tin Handshake sang Gateway ${deliveryCarrier} (HTTP 200)`,
+            visibility: 'internal',
+            rawCode: 'SPF-SYNC-OK',
+          },
+        ],
+      },
+      {
+        flow: 'GIAO HÀNG',
+        name: 'Giao hàng',
+        carrier: deliveryCarrier,
+        code: deliveryCode,
+        status: 'Giao hàng không thành công',
+        state: 'warn',
+        events: [
+          {
+            time: '08:20',
+            carrier: deliveryCarrier,
+            label: 'Đang đi lấy hàng (Trung chuyển nhận kiện)',
+            visibility: 'shop',
+          },
+          {
+            time: '08:30',
+            carrier: deliveryCarrier,
+            label: 'Lấy hàng thành công từ SuperShip',
+            visibility: 'shop',
+          },
+          {
+            time: '08:45',
+            carrier: deliveryCarrier,
+            label: `Nhận hàng vào bưu cục Nguồn (${deliveryCarrier} Hub HN)`,
+            visibility: 'shop',
+          },
+          {
+            time: '08:50',
+            carrier: deliveryCarrier,
+            label: 'Đóng bao tải liên tỉnh (Mã tải: BAG-BDI-9921)',
+            visibility: 'internal',
+            rawCode: 'BAG-BDI-9921',
+          },
+          {
+            time: '09:10',
+            carrier: deliveryCarrier,
+            label: 'Xuất hàng đến trung tâm khai thác (trung tâm chia chọn)',
+            visibility: 'shop',
+          },
+          {
+            time: '10:20',
+            carrier: deliveryCarrier,
+            label: 'Nhận hàng vào trung tâm khai thác (trung tâm chia chọn)',
+            visibility: 'shop',
+          },
+          {
+            time: '11:05',
+            carrier: deliveryCarrier,
+            label: 'Xuất hàng khỏi trung tâm khai thác (trung tâm chia chọn)',
+            visibility: 'shop',
+          },
+          {
+            time: '13:20',
+            carrier: deliveryCarrier,
+            label: 'Nhận hàng vào bưu cục phát hàng (An Nhơn - Bình Định)',
+            visibility: 'shop',
+          },
+          {
+            time: '13:30',
+            carrier: deliveryCarrier,
+            label: 'Điều phối shipper phát hàng: Trần Đình Quân (Mã NV: DRV-102)',
+            visibility: 'internal',
+            rawCode: 'DISPATCH-DRV-102',
+          },
+          {
+            time: '14:05',
+            carrier: deliveryCarrier,
+            label: 'Xuất hàng để đi giao',
+            visibility: 'shop',
+          },
+          {
+            time: '15:30',
+            carrier: deliveryCarrier,
+            label: 'Giao hàng không thành công (Khách hẹn lại)',
+            visibility: 'shop',
+          },
+          {
+            time: '15:35',
+            carrier: deliveryCarrier,
+            label: 'Shipper log: Gọi 3 cuộc 033****429 không nhấc máy (Lý do F02)',
+            visibility: 'internal',
+            rawCode: 'FAIL-REASON-F02',
+          },
+          {
+            time: '15:40',
+            carrier: 'SuperPlatform',
+            label: 'CS SuperPlatform: Gửi cảnh báo giao không thành công tới tài khoản Shop',
+            visibility: 'internal',
+            rawCode: 'CS-ALERT-09',
+          },
+        ],
+      },
+      {
+        flow: 'HOÀN HÀNG',
+        name: 'Hoàn hàng',
+        carrier: returnCarrier,
+        code: returnCode,
+        status: 'Xuất hàng khỏi trung tâm khai thác để trả về',
+        state: 'warn',
+        flowNote: '· Lấy hàng → Giao hàng',
+        events: [
+          {
+            time: '15:45',
+            carrier: 'Shop',
+            label: 'Shop xác nhận yêu cầu hoàn hàng qua hệ thống',
+            visibility: 'shop',
+          },
+          {
+            time: '15:48',
+            carrier: 'SuperPlatform',
+            label: 'SuperPlatform: Phê duyệt chuyển hoàn tự động (Auto-Return SLA 48h)',
+            visibility: 'internal',
+            rawCode: 'AUTO-RET-APPR',
+          },
+          {
+            time: '15:50',
+            carrier: returnCarrier,
+            label: 'Xác nhận chuyển hoàn',
+            visibility: 'shop',
+          },
+          {
+            time: '16:10',
+            carrier: returnCarrier,
+            label: 'Xuất hàng khỏi bưu cục phát để trả về',
+            visibility: 'shop',
+          },
+          {
+            time: '16:20',
+            carrier: returnCarrier,
+            label: 'Niêm phong túi hàng hoàn (Mã seal: RET-SEAL-0881)',
+            visibility: 'internal',
+            rawCode: 'SEAL-0881',
+          },
+          {
+            time: '17:00',
+            carrier: returnCarrier,
+            label: 'Nhận hàng vào trung tâm khai thác để trả về',
+            visibility: 'shop',
+          },
+          {
+            time: '18:00',
+            carrier: returnCarrier,
+            label: 'Xuất hàng khỏi trung tâm khai thác để trả về',
+            visibility: 'shop',
+          },
+          {
+            time: '18:05',
+            carrier: 'SuperPlatform',
+            label: 'Kế toán SuperPlatform: Cấn trừ phí hoàn 5.000đ vào kỳ đối soát',
+            visibility: 'internal',
+            rawCode: 'FIN-AUDIT-RET',
+          },
+        ],
+      },
+    ];
+  }
+
+  if (phase === 'handover' || phase === 'delivery' || order.spfCode === 'SPF-0901') {
+    return [
+      {
+        flow: 'LẤY HÀNG',
+        name: 'Lấy hàng',
+        carrier: 'SuperShip',
+        code: pickupCode,
+        status: 'Đã bàn giao nhà vận chuyển khác',
+        state: 'done',
+        events: [
+          { time: '08:00', carrier: 'SuperShip', label: 'Chờ lấy hàng', visibility: 'shop' },
+          {
+            time: '08:15',
+            carrier: 'SuperPlatform',
+            label: 'Điều phối lấy hàng HUB-HN02',
+            visibility: 'internal',
+            rawCode: 'DISPATCH-PICKUP',
+          },
+          { time: '08:40', carrier: 'SuperShip', label: 'Lấy hàng thành công', visibility: 'shop' },
+          {
+            time: '09:15',
+            carrier: 'SuperShip',
+            label: 'Nhập kho trung chuyển',
+            visibility: 'shop',
+          },
+          {
+            time: '09:45',
+            carrier: 'SuperShip',
+            label: 'Đã bàn giao nhà vận chuyển khác',
+            visibility: 'shop',
+          },
+        ],
+      },
+      {
+        flow: 'GIAO HÀNG',
+        name: 'Giao hàng',
+        carrier: deliveryCarrier,
+        code: deliveryCode,
+        status: order.status,
+        state: order.spfCode === 'SPF-0901' ? 'done' : 'current',
+        events: [
+          {
+            time: '10:15',
+            carrier: deliveryCarrier,
+            label: 'Nhận hàng vào bưu cục phát hàng',
+            visibility: 'shop',
+          },
+          {
+            time: '10:30',
+            carrier: deliveryCarrier,
+            label: 'Phân tuyến shipper giao hàng',
+            visibility: 'internal',
+            rawCode: 'ROUTE-DELIVERY',
+          },
+          {
+            time: '10:45',
+            carrier: deliveryCarrier,
+            label: 'Xuất hàng để đi giao',
+            visibility: 'shop',
+          },
+        ],
+      },
+    ];
+  }
+
+  if (phase === 'cancelled') {
+    return [
+      {
+        flow: 'LẤY HÀNG',
+        name: 'Lấy hàng',
+        carrier: 'SuperShip',
+        code: pickupCode,
+        status: 'Đã hủy',
+        state: 'error',
+        events: [
+          { time: '11:21', carrier: 'SuperShip', label: 'Chờ lấy hàng', visibility: 'shop' },
+          {
+            time: '11:22',
+            carrier: 'SuperShip',
+            label: 'Đơn vị vận chuyển thông báo đơn hàng đã bị hủy',
+            visibility: 'shop',
+          },
+          {
+            time: '11:23',
+            carrier: 'SuperPlatform',
+            label: 'SuperPlatform Audit: Giải phóng mã vận đơn và hoàn hạn mức công nợ',
+            visibility: 'internal',
+            rawCode: 'AUDIT-RELEASE-LIMIT',
+          },
+        ],
+      },
+    ];
+  }
+
+  return [
+    {
+      flow: 'LẤY HÀNG',
+      name: 'Lấy hàng',
+      carrier: 'SuperShip',
+      code: pickupCode,
+      status: 'Chờ lấy hàng',
+      state: 'current',
+      events: [
+        { time: '09:00', carrier: 'SuperShip', label: 'Chờ lấy hàng', visibility: 'shop' },
+        {
+          time: '09:15',
+          carrier: 'SuperPlatform',
+          label: 'Hệ thống đã tiếp nhận và điều phối tài xế lấy hàng',
+          visibility: 'shop',
+        },
+        {
+          time: '09:20',
+          carrier: 'SuperPlatform',
+          label: 'SuperPlatform Engine: Tối ưu hoá chặng ghép đơn nội đô',
+          visibility: 'internal',
+          rawCode: 'AI-OPTIMIZE-LOCAL',
+        },
+      ],
+    },
+  ];
+}
+
+function getDetailActionHistory(order: Order): ActionHistoryItem[] {
+  if (order.serviceType === 'instant') {
+    const stage = order.shippingInfo?.stages?.find((item) => item.key === 'delivery');
+    const carrier = stage?.carrier || order.selectedCarrier || 'Nhà vận chuyển';
+    const trackingCode = stage?.tracking || order.shippingInfo?.deliveryTracking || '';
+    const carrierActions: ActionHistoryItem[] = [...(stage?.webhookEvents || [])]
+      .sort((a, b) => new Date(b.eventAt).getTime() - new Date(a.eventAt).getTime())
+      .map((event, index) => ({
+        id: 100 + index,
+        actor: carrier,
+        message: `đã cập nhật chuyến giao ${trackingCode} sang “${event.statusText}”${event.location ? ` tại ${event.location}` : ''}.`,
+        time: formatDisplayDate(event.eventAt),
+        visibility: 'shop',
+      }));
+
+    return [
+      ...carrierActions,
+      {
+        id: 199,
+        actor: order.shopName || 'Shop',
+        message: `đã tạo đơn giao hỏa tốc ${order.id} qua ${carrier}.`,
+        time: formatDisplayDate(order.createdAt),
+        visibility: 'shop',
+      },
+    ];
+  }
+
+  const phase = getSpfLifecyclePhase(order.spfCode);
+  const isMultiLegOrReturn =
+    phase === 'handover' ||
+    phase === 'delivery' ||
+    phase === 'return' ||
+    phase === 'returned' ||
+    Boolean(order.shippingInfo?.returnTracking) ||
+    Boolean(order.shippingInfo?.deliveryTracking);
+
+  const deliveryCarrier = order.shippingInfo?.deliveryCarrier?.includes('BEST')
+    ? 'BEST'
+    : order.shippingInfo?.deliveryCarrier || 'BEST';
+  const pickupCarrier = 'SuperShip';
+  const pickupCode = order.shippingInfo?.pickupTracking || 'STGS983262LM.826941741';
+  const deliveryCode = order.shippingInfo?.deliveryTracking || '999800060099891';
+  const orderId = order.id || '900115667406';
+  const shopName = 'Shop Gia Dụng Việt';
+
+  if (isMultiLegOrReturn) {
+    return [
+      {
+        id: 1,
+        actor: 'SuperPlatform',
+        message: `đã nhận trạng thái “Lấy hàng không thành công” từ ${deliveryCarrier} và cập nhật trạng thái tổng sang “Bàn giao thất bại”.`,
+        time: '25/08/2026 - 09:20',
+        visibility: 'internal',
+      },
+      {
+        id: 2,
+        actor: deliveryCarrier,
+        message: `đã cập nhật vận đơn ${deliveryCode} sang “Lấy hàng không thành công”.`,
+        time: '25/08/2026 - 09:20',
+        visibility: 'internal',
+      },
+      {
+        id: 3,
+        actor: deliveryCarrier,
+        message: `đã cập nhật vận đơn ${deliveryCode} sang “Đang đi lấy hàng”.`,
+        time: '25/08/2026 - 09:10',
+        visibility: 'internal',
+      },
+      {
+        id: 4,
+        actor: 'SuperPlatform',
+        message: `đã cập nhật trạng thái tổng sang “Đang yêu cầu bàn giao lại” và yêu cầu ${deliveryCarrier} nhận hàng lại.`,
+        time: '25/08/2026 - 09:10',
+        visibility: 'internal',
+      },
+      {
+        id: 5,
+        actor: 'SuperPlatform',
+        message: `đã nhận trạng thái “Lấy hàng không thành công” từ ${deliveryCarrier} và cập nhật trạng thái tổng sang “Bàn giao thất bại”.`,
+        time: '25/08/2026 - 08:50',
+        visibility: 'shop',
+      },
+      {
+        id: 6,
+        actor: deliveryCarrier,
+        message: `đã cập nhật vận đơn ${deliveryCode} sang “Lấy hàng không thành công”.`,
+        time: '25/08/2026 - 08:50',
+        visibility: 'internal',
+      },
+      {
+        id: 7,
+        actor: 'SuperPlatform',
+        message: `đã nhận trạng thái “Đang đi lấy hàng” từ ${deliveryCarrier} và cập nhật trạng thái tổng sang “NVC giao đang nhận hàng”.`,
+        time: '25/08/2026 - 08:45',
+        visibility: 'internal',
+      },
+      {
+        id: 8,
+        actor: deliveryCarrier,
+        message: `đã cập nhật vận đơn ${deliveryCode} sang “Đang đi lấy hàng”.`,
+        time: '25/08/2026 - 08:45',
+        visibility: 'shop',
+      },
+      {
+        id: 9,
+        actor: 'SuperPlatform',
+        message: `đã nhận trạng thái “Chờ bàn giao cho NVC giao” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Chờ bàn giao”.`,
+        time: '25/08/2026 - 08:40',
+        visibility: 'internal',
+      },
+      {
+        id: 10,
+        actor: pickupCarrier,
+        message: `đã cập nhật vận đơn ${pickupCode} sang “Chờ bàn giao cho NVC giao”.`,
+        time: '25/08/2026 - 08:40',
+        visibility: 'shop',
+      },
+      {
+        id: 11,
+        actor: 'SuperPlatform',
+        message: `đã nhận trạng thái “Nhập kho” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Đã nhập kho/bưu cục lấy”.`,
+        time: '25/08/2026 - 08:38',
+        visibility: 'internal',
+      },
+      {
+        id: 12,
+        actor: pickupCarrier,
+        message: `đã cập nhật vận đơn ${pickupCode} sang “Nhập kho”.`,
+        time: '25/08/2026 - 08:38',
+        visibility: 'shop',
+      },
+      {
+        id: 13,
+        actor: 'SuperPlatform',
+        message: `đã nhận trạng thái “Lấy hàng thành công” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Đã lấy hàng”.`,
+        time: '25/08/2026 - 08:35',
+        visibility: 'internal',
+      },
+      {
+        id: 14,
+        actor: pickupCarrier,
+        message: `đã cập nhật vận đơn ${pickupCode} sang “Lấy hàng thành công”.`,
+        time: '25/08/2026 - 08:35',
+        visibility: 'shop',
+      },
+      {
+        id: 15,
+        actor: 'SuperPlatform',
+        message: `đã nhận trạng thái “Đang lấy hàng” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Đang lấy hàng”.`,
+        time: '25/08/2026 - 08:20',
+        visibility: 'internal',
+      },
+      {
+        id: 16,
+        actor: pickupCarrier,
+        message: `đã cập nhật vận đơn ${pickupCode} sang “Đang lấy hàng”.`,
+        time: '25/08/2026 - 08:20',
+        visibility: 'shop',
+      },
+      {
+        id: 17,
+        actor: 'SuperPlatform',
+        message: `đã nhận trạng thái “Chờ lấy hàng” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Chờ lấy hàng”.`,
+        time: '25/08/2026 - 08:05',
+        visibility: 'internal',
+      },
+      {
+        id: 18,
+        actor: pickupCarrier,
+        message: `đã cập nhật vận đơn ${pickupCode} sang “Chờ lấy hàng”.`,
+        time: '25/08/2026 - 08:05',
+        visibility: 'shop',
+      },
+      {
+        id: 19,
+        actor: 'SuperPlatform',
+        message: `đã tạo vận đơn lấy hàng ${pickupCode} trên ${pickupCarrier} và vận đơn giao hàng ${deliveryCode} trên ${deliveryCarrier}.`,
+        time: '25/08/2026 - 08:03',
+        visibility: 'internal',
+      },
+      {
+        id: 20,
+        actor: shopName,
+        message: `đã tạo đơn hàng ${orderId} trên SuperPlatform.`,
+        time: '25/08/2026 - 08:00',
+        visibility: 'shop',
+      },
+    ];
+  }
+
+  return [
+    {
+      id: 1,
+      actor: shopName,
+      message: `đã in phiếu gửi cho đơn hàng ${order.id}.`,
+      time: '14/09/2026 - 14:21',
+      visibility: 'shop',
+    },
+    {
+      id: 2,
+      actor: 'SuperPlatform',
+      message: `đã phân tuyến SuperPlatform thông minh kết nối sang đối tác ${deliveryCarrier}.`,
+      time: '14/09/2026 - 11:22',
+      visibility: 'internal',
+    },
+    {
+      id: 3,
+      actor: shopName,
+      message: `đã tạo đơn hàng ${order.id} trên SuperPlatform.`,
+      time: '14/09/2026 - 11:21',
+      visibility: 'shop',
+    },
+  ];
+}
 
 function formatDisplayDate(dateStr?: string): string {
-  if (!dateStr) return '12/09/2026 • 11:26';
-  if (dateStr.includes(' • ')) return dateStr;
+  if (!dateStr) return '14/09/2026 - 11:21';
+  if (dateStr.includes(' - ') || dateStr.includes(' • ')) return dateStr;
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
@@ -40,141 +1105,158 @@ function formatDisplayDate(dateStr?: string): string {
     const year = d.getFullYear();
     const hours = String(d.getHours()).padStart(2, '0');
     const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${day}/${month}/${year} • ${hours}:${minutes}`;
+    return `${day}/${month}/${year} - ${hours}:${minutes}`;
   } catch {
     return dateStr;
   }
 }
 
-function SvgBarcode({ code }: { code: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <svg width="220" height="46" viewBox="0 0 220 46" style={{ display: 'block' }}>
-        {[
-          4, 7, 12, 16, 20, 22, 26, 31, 36, 39, 44, 47, 52, 57, 61, 64, 69, 74, 78,
-          83, 86, 91, 95, 100, 104, 107, 112, 117, 122, 125, 130, 134, 139, 143, 146,
-          151, 156, 160, 163, 168, 173, 178, 181, 186, 190, 195, 199, 204, 208, 212,
-        ].map((x, i) => (
-          <rect
-            key={i}
-            x={x}
-            y="0"
-            width={i % 3 === 0 ? 3 : i % 2 === 0 ? 2 : 1.2}
-            height="46"
-            fill="#1e293b"
-          />
-        ))}
-      </svg>
-      <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2, color: '#1e293b', marginTop: 5 }}>
-        {code}
-      </div>
-    </div>
-  );
+function maskPhone(phone: string): string {
+  if (phone.length >= 10) {
+    return phone.slice(0, 3) + '****' + phone.slice(-3);
+  }
+  return phone;
 }
 
-function SvgQrCode() {
-  return (
-    <svg width="124" height="124" viewBox="0 0 120 120" style={{ display: 'block', margin: '0 auto 16px' }}>
-      <rect width="120" height="120" fill="white" />
-      {/* Top-left corner finder */}
-      <rect x="6" y="6" width="32" height="32" fill="#0f172a" rx="4" />
-      <rect x="12" y="12" width="20" height="20" fill="white" rx="2" />
-      <rect x="17" y="17" width="10" height="10" fill="#0f172a" rx="1" />
 
-      {/* Top-right corner finder */}
-      <rect x="82" y="6" width="32" height="32" fill="#0f172a" rx="4" />
-      <rect x="88" y="12" width="20" height="20" fill="white" rx="2" />
-      <rect x="93" y="17" width="10" height="10" fill="#0f172a" rx="1" />
-
-      {/* Bottom-left corner finder */}
-      <rect x="6" y="82" width="32" height="32" fill="#0f172a" rx="4" />
-      <rect x="12" y="88" width="20" height="20" fill="white" rx="2" />
-      <rect x="17" y="93" width="10" height="10" fill="#0f172a" rx="1" />
-
-      {/* Data pattern blocks */}
-      <rect x="44" y="10" width="5" height="5" fill="#0f172a" />
-      <rect x="52" y="10" width="12" height="5" fill="#0f172a" />
-      <rect x="68" y="10" width="8" height="5" fill="#0f172a" />
-
-      <rect x="44" y="20" width="8" height="5" fill="#0f172a" />
-      <rect x="58" y="20" width="5" height="5" fill="#0f172a" />
-      <rect x="68" y="20" width="9" height="5" fill="#0f172a" />
-
-      <rect x="44" y="30" width="5" height="5" fill="#0f172a" />
-      <rect x="54" y="30" width="10" height="5" fill="#0f172a" />
-      <rect x="70" y="30" width="6" height="5" fill="#0f172a" />
-
-      <rect x="10" y="44" width="24" height="5" fill="#0f172a" />
-      <rect x="40" y="44" width="40" height="5" fill="#0f172a" />
-      <rect x="86" y="44" width="24" height="5" fill="#0f172a" />
-
-      <rect x="10" y="54" width="8" height="5" fill="#0f172a" />
-      <rect x="24" y="54" width="12" height="5" fill="#0f172a" />
-      <rect x="44" y="54" width="16" height="5" fill="#0f172a" />
-      <rect x="68" y="54" width="14" height="5" fill="#0f172a" />
-      <rect x="88" y="54" width="22" height="5" fill="#0f172a" />
-
-      <rect x="10" y="64" width="18" height="5" fill="#0f172a" />
-      <rect x="36" y="64" width="22" height="5" fill="#0f172a" />
-      <rect x="66" y="64" width="18" height="5" fill="#0f172a" />
-      <rect x="90" y="64" width="20" height="5" fill="#0f172a" />
-
-      <rect x="44" y="76" width="6" height="6" fill="#0f172a" />
-      <rect x="56" y="76" width="10" height="6" fill="#0f172a" />
-      <rect x="72" y="76" width="18" height="6" fill="#0f172a" />
-      <rect x="96" y="76" width="14" height="6" fill="#0f172a" />
-
-      <rect x="44" y="88" width="14" height="6" fill="#0f172a" />
-      <rect x="64" y="88" width="8" height="6" fill="#0f172a" />
-      <rect x="78" y="88" width="12" height="6" fill="#0f172a" />
-      <rect x="96" y="88" width="18" height="6" fill="#0f172a" />
-
-      <rect x="44" y="100" width="20" height="6" fill="#0f172a" />
-      <rect x="70" y="100" width="14" height="6" fill="#0f172a" />
-      <rect x="90" y="100" width="20" height="6" fill="#0f172a" />
-    </svg>
-  );
-}
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const notify = useToast();
-  const { orders, cancelOrder, markPrinted } = useOrders();
+  const { orders, cancelOrder, markPrinted, recordAccessAudit, applyOperation, updateOrder } =
+    useOrders();
 
-  const [rating, setRating] = useState(0);
   const [showPhoneReceiver, setShowPhoneReceiver] = useState(false);
   const [showPhoneSender, setShowPhoneSender] = useState(false);
+  const [showDeliveryShipperPhone, setShowDeliveryShipperPhone] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showEditCodModal, setShowEditCodModal] = useState(false);
   const [showEditInfoModal, setShowEditInfoModal] = useState(false);
+  const [showPrintHistory, setShowPrintHistory] = useState(false);
+  const [isDeliveryProofExpanded, setIsDeliveryProofExpanded] = useState(false);
+  const [operationModal, setOperationModal] = useState<
+    'redelivery' | 'return' | 'confirm-return' | 'change-carrier' | 'images' | null
+  >(null);
+  const [operationError, setOperationError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedCarrier, setSelectedCarrier] = useState('GHN');
+  const [operationReason, setOperationReason] = useState('');
+  const [pendingImages, setPendingImages] = useState<
+    Array<{ id: string; imageUrl: string; fileName: string; uploadedAt: string; uploadedBy: string }>
+  >([]);
+  const [isStale, setIsStale] = useState(false);
 
-  // Find order by ID or use fallback mock order matching screenshot
-  const order = orders.find((o) => o.id === id) || {
-    id: id || '826883962104',
-    name: 'Lê Phước Thắng',
-    phone: '033****429',
-    address: '99/1 Hàm Nghi, Phường Bình Định, Thị xã An Nhơn',
-    region: 'Tỉnh Bình Định',
-    product: 'Mỹ phẩm',
-    weight: 750,
-    value: 200000,
-    cod: 200000,
-    length: 10,
-    width: 10,
-    height: 10,
-    privateId: '',
-    note: 'Khách không nhận vui lòng thu 30k phí giao hàng. Cảm ơn!',
-    payer: 'sender' as const,
-    inspection: 'view' as const,
-    returnGoods: false,
-    createdAt: '12/09/2026 • 11:26',
-    status: 'Chờ Lấy Hàng' as const,
-    printed: false,
-    batchId: '',
-    reconciliationId: '',
+  const outletContext = useOutletContext<{ isInternal: boolean }>();
+  const isInternal = outletContext?.isInternal ?? false;
+
+  // Mặc định tất cả các chặng trong hành trình sẽ đóng (theo yêu cầu người dùng)
+  const [expandedStages, setExpandedStages] = useState<Record<number, boolean>>({});
+  const [showAllLogs, setShowAllLogs] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [rating, setRating] = useState<number>(0);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+
+  const order = orders.find((o) => o.id === id);
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (!event.key?.startsWith('superplatform:db:orders') || !event.newValue) return;
+      try {
+        const updatedOrders = JSON.parse(event.newValue) as Order[];
+        const updated = updatedOrders.find((item) => item.id === id);
+        if (updated && updated.updatedAt !== order?.updatedAt) setIsStale(true);
+      } catch {
+        // Ignore malformed external storage events and keep the current safe snapshot.
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [id, order?.updatedAt]);
+  const viewer: OrderViewer = isInternal
+    ? { kind: 'internal' }
+    : { kind: 'shop', shopId: 'S275518' };
+
+  if (!order) {
+    return (
+      <div className="order-detail-page-wrapper">
+        <AsyncStatePanel
+          state="not-found"
+          actionLabel="Về danh sách Order"
+          onAction={() => navigate('/orders')}
+        />
+      </div>
+    );
+  }
+
+  const viewDecision = getOrderPermission(viewer, order, 'view_order');
+  if (!viewDecision.allowed) {
+    return (
+      <div className="order-detail-page-wrapper">
+        <AsyncStatePanel
+          state="forbidden"
+          description={viewDecision.reason}
+          actionLabel="Về danh sách Order"
+          onAction={() => navigate('/orders')}
+        />
+      </div>
+    );
+  }
+
+  const permission = (capability: OrderCapability) =>
+    getOrderPermission(viewer, order, capability);
+
+  const openOperation = (type: typeof operationModal) => {
+    setOperationError('');
+    setOperationReason('');
+    setPendingImages([]);
+    setOperationModal(type);
+  };
+
+  const submitOperation = async (run: () => void, successMessage: string) => {
+    if (isSubmitting) return;
+    setOperationError('');
+    setIsSubmitting(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      run();
+      setOperationModal(null);
+      notify(successMessage);
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'Thao tác thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleImageFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+    const selected = Array.from(files).slice(0, Math.max(0, 5 - pendingImages.length));
+    selected.forEach((file) => {
+      if (!file.type.startsWith('image/')) {
+        setOperationError(`${file.name} không phải là tệp ảnh hợp lệ.`);
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setOperationError(`${file.name} vượt quá dung lượng tối đa 5 MB.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () =>
+        setPendingImages((current) => [
+          ...current,
+          {
+            id: `GOODS-${order.id}-${Date.now()}-${file.name}`,
+            imageUrl: String(reader.result),
+            fileName: file.name,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: isInternal ? 'Nội bộ SuperPlatform' : order.shopName || 'Shop',
+          },
+        ]);
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleCopyId = () => {
@@ -182,8 +1264,93 @@ export default function OrderDetailPage() {
     notify('Đã sao chép mã đơn hàng!');
   };
 
+  const handleCopyWaybill = (waybill: string) => {
+    navigator.clipboard.writeText(waybill);
+    setCopiedCode(waybill);
+    notify('Đã sao chép mã vận đơn: ' + waybill);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const toggleStage = (index: number) => {
+    setExpandedStages((prev) => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const transportLegs = getDetailTransportLegs(order).filter((leg) =>
+    hasCarrierIconDetail(leg.carrier),
+  );
+  const deliveryStage = order.shippingInfo?.stages?.find((stage) => stage.key === 'delivery');
+  const activeDeliveryStage =
+    deliveryStage &&
+    (deliveryStage.status === 'active' || order.shippingInfo?.currentStage === 'delivery')
+      ? deliveryStage
+      : undefined;
+  const deliveryShipperStage =
+    deliveryStage &&
+    deliveryStage.status !== 'pending' &&
+    order.shipperDeliveryName &&
+    order.shipperDeliveryPhone
+      ? deliveryStage
+      : undefined;
+  const deliveryShipperBadge = activeDeliveryStage
+    ? 'Đang phụ trách'
+    : order.spfCode === 'SPF-0901'
+      ? 'Đã giao thành công'
+      : 'Đã kết thúc lượt giao';
+  const deliveryProofs =
+    order.deliveryProofs?.length || order.spfCode !== 'SPF-0901'
+      ? order.deliveryProofs || []
+      : [
+          {
+            id: `POD-${order.id}-fallback`,
+            imageUrl: '/images/delivery-proof/proof-delivered-v1.png',
+            capturedAt: order.deliveryAt || order.updatedAt || order.createdAt,
+            capturedBy: order.shipperDeliveryName || 'Nhân viên giao hàng',
+            note: 'Kiện hàng đã được giao an toàn tại địa chỉ người nhận.',
+          },
+        ];
+  const journeyStages = getDetailJourneyStages(order);
+  const printActions: ActionHistoryItem[] = [...(order.printHistory || [])]
+    .reverse()
+    .map((record, index) => ({
+      id: -(index + 1),
+      actor: record.printedBy,
+      message: `đã in nhãn lần ${order.printHistory!.length - index} bằng mẫu ${record.templateType}, mã vận đơn ${record.waybill}.`,
+      time: formatDisplayDate(record.printedAt),
+      visibility: 'shop',
+    }));
+  const accessAuditActions: ActionHistoryItem[] = (order.accessAudit || []).map((record, index) => ({
+    id: -(1000 + index),
+    actor: record.viewedBy,
+    message: `đã xem SĐT shipper đang phụ trách lượt giao. Lý do: ${record.reason}.`,
+    time: formatDisplayDate(record.viewedAt),
+    visibility: 'internal',
+  }));
+  const carrierChangeActions: ActionHistoryItem[] = (order.carrierChangeHistory || []).map(
+    (record, index) => ({
+      id: -(2000 + index),
+      actor: record.changedBy,
+      message: `đã đổi NVC giao từ ${record.fromCarrier} sang ${record.toCarrier}. Lý do: ${record.reason}.`,
+      time: formatDisplayDate(record.changedAt),
+      visibility: 'internal',
+    }),
+  );
+  const goodsImageActions: ActionHistoryItem[] = (order.goodsImages || []).map((record, index) => ({
+    id: -(3000 + index),
+    actor: record.uploadedBy,
+    message: `đã thêm ảnh hàng hóa “${record.fileName}”.`,
+    time: formatDisplayDate(record.uploadedAt),
+    visibility: 'shop',
+  }));
+  const actionHistory = [
+    ...carrierChangeActions,
+    ...goodsImageActions,
+    ...accessAuditActions,
+    ...printActions,
+    ...getDetailActionHistory(order),
+  ];
+
   return (
-    <div className="order-detail-page-wrapper">
+    <div className={`order-detail-page-wrapper ${isInternal ? 'internal-order-detail' : ''}`}>
       <div className="order-detail-container">
         {/* Top Header / Title Bar */}
         <div className="order-detail-header">
@@ -194,55 +1361,81 @@ export default function OrderDetailPage() {
               onClick={() => navigate('/orders')}
               title="Quay lại danh sách đơn hàng"
             >
-              <ArrowLeft size={17} />
+              <ArrowLeft size={18} />
             </button>
-            <div>
-              <div className="order-detail-subtitle">Chi tiết đơn hàng</div>
-              <h1 className="order-detail-title">
-                {order.id}
-                <button
-                  type="button"
-                  className="order-copy-btn"
-                  onClick={handleCopyId}
-                  title="Sao chép mã đơn"
-                >
-                  <Copy size={16} />
-                </button>
-              </h1>
-            </div>
+            <h1 className="order-detail-title">
+              Chi Tiết Đơn Hàng <span className="order-id-bold">{order.id}</span>
+              <button
+                type="button"
+                className="order-copy-btn"
+                onClick={handleCopyId}
+                title="Sao chép mã đơn"
+              >
+                <Copy size={16} />
+              </button>
+            </h1>
           </div>
 
           <div className="order-detail-header-right">
-            <div className="order-header-date">
-              {formatDisplayDate(order.createdAt)}
-            </div>
-            <span className="order-status-badge">
+            <span
+              className={`order-status-pill ${order.spfCode === 'SPF-0201' ? 'status-cancelled' : ''}`}
+            >
               {order.status}
+            </span>
+            <span className="order-header-created-date">
+              Ngày tạo đơn: {formatDisplayDate(order.createdAt)}
             </span>
           </div>
         </div>
 
+        {order.syncStatus === 'FAILED' && (
+          <AsyncStatePanel
+            state="error"
+            compact
+            title="Đồng bộ Order đang gặp lỗi"
+            description="Một số trạng thái từ nhà vận chuyển có thể chưa phải dữ liệu mới nhất. Bạn vẫn có thể xem thông tin đã đồng bộ gần nhất."
+            actionLabel={isInternal ? 'Mở vận hành NVC' : 'Gửi yêu cầu hỗ trợ'}
+            onAction={() =>
+              isInternal
+                ? navigate(`/carrier-operations?orderId=${order.id}`)
+                : setShowSupportModal(true)
+            }
+          />
+        )}
+
+        {isStale && (
+          <AsyncStatePanel
+            state="stale"
+            compact
+            actionLabel="Tải dữ liệu mới"
+            onAction={() => window.location.reload()}
+          />
+        )}
+
         {/* Main 2-Column Grid Layout */}
         <div className="order-detail-grid">
-          {/* Left Column (Cards 1, 2, 3) */}
+          {/* Left Column (~62% width) */}
           <div className="order-col-left">
             {/* Card 1: Thông tin người nhận */}
             <div className="order-card">
               <div className="order-card-header">
-                <div className="order-card-header-icon">
-                  <User size={15} />
+                <div className="card-header-icon-box green">
+                  <MapPin size={16} />
                 </div>
                 <h3 className="order-card-header-title">Thông tin người nhận</h3>
               </div>
-
               <div className="order-card-body">
-                <div className="order-address-text">
+                <div className="order-address-line">
                   {order.address}, {order.region}
                 </div>
-
                 <div className="order-contact-row">
-                  <span className="order-contact-name">
-                    {order.name} - {showPhoneReceiver ? '0331126429' : order.phone}
+                  <span className="order-contact-text">
+                    <b>{order.name}</b> -{' '}
+                    {showPhoneReceiver
+                      ? order.phone.length > 9
+                        ? order.phone
+                        : '0341234352'
+                      : maskPhone(order.phone)}
                   </span>
                   <button
                     type="button"
@@ -256,49 +1449,148 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {/* Card 2: Chi tiết hàng gửi */}
+            {/* Card 2: Chi tiết hàng gửi (Enriched from supership-order-mockui) */}
             <div className="order-card">
               <div className="order-card-header">
-                <div className="order-card-header-icon">
-                  <Package size={15} />
+                <div className="card-header-icon-box slate">
+                  <Package size={16} />
                 </div>
                 <h3 className="order-card-header-title">Chi tiết hàng gửi</h3>
               </div>
-
               <div className="order-card-body">
-                <div className="order-info-group">
-                  <span className="order-field-label">Tên sản phẩm</span>
-                  <span className="order-field-val-bold">{order.product}</span>
+                <div className="product-summary-box">
+                  <div className="product-name-title">
+                    Tên sản phẩm: <b>{order.product || 'Sách'}</b>
+                  </div>
+                  <div className="product-specs-grid">
+                    <div className="spec-item">
+                      <span className="spec-label">Khối lượng:</span>
+                      <span className="spec-val">
+                        <b>{order.weight || 334} gr</b>
+                      </span>
+                    </div>
+                    <div className="spec-item">
+                      <span className="spec-label">Kích thước (DxRxC):</span>
+                      <span className="spec-val">
+                        <b>
+                          {order.length || 15} x {order.width || 10} x {order.height || 5} cm
+                        </b>
+                      </span>
+                    </div>
+                    <div className="spec-item">
+                      <span className="spec-label">Trị giá khai giá:</span>
+                      <span className="spec-val">
+                        <b>{money(order.value || 100000)}</b>
+                      </span>
+                    </div>
+                    <div className="spec-item">
+                      <span className="spec-label">Mã đơn riêng:</span>
+                      <span className="spec-val font-mono">
+                        <b>{order.privateId || 'SPAI-TEST-882'}</b>
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="order-card-divider" />
-
-                <div className="order-info-group">
-                  <span className="order-field-label">Ghi chú</span>
-                  <span className="order-field-val-note">
+                <div className="order-note-box">
+                  <span className="note-title">Ghi chú giao hàng:</span>
+                  <span className="note-text">
                     {order.note || 'Khách không nhận vui lòng thu 30k phí giao hàng. Cảm ơn!'}
                   </span>
                 </div>
+                {!!order.goodsImages?.length && (
+                  <div className="saved-goods-images">
+                    <div className="saved-goods-images-heading">
+                      <ImagePlus size={15} />
+                      <strong>Ảnh hàng hóa ({order.goodsImages.length})</strong>
+                    </div>
+                    <div className="goods-image-preview-grid">
+                      {order.goodsImages.map((image) => (
+                        <a
+                          key={image.id}
+                          className="goods-image-preview saved"
+                          href={image.imageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`Mở ảnh ${image.fileName}`}
+                        >
+                          <img src={image.imageUrl} alt={image.fileName} />
+                          <span>{image.fileName}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Card 3: Thông tin người gửi */}
+            {/* Card 3: Lịch sử hành động (Exact style of media_1789450641010.png) */}
+            <div className="order-card action-history-card">
+              <div className="history-card-header">
+                <Clock size={16} className="history-card-clock-icon" />
+                <h3 className="history-card-title">Lịch sử hành động</h3>
+              </div>
+              <div className="order-card-body history-card-body">
+                {(() => {
+                  const filtered = actionHistory.filter(
+                    (a) => isInternal || a.visibility === 'shop',
+                  );
+                  const displayList = showAllLogs ? filtered : filtered.slice(0, 8);
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="activity-empty-state">
+                        Không có lịch sử hành động nào được ghi nhận.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="history-flow-container">
+                      <div className="history-list-streamlined">
+                        {displayList.map((item) => (
+                          <div key={item.id} className="history-row-item">
+                            <div className="history-row-text">
+                              <b>{item.actor}</b> {item.message}
+                            </div>
+                            <div className="history-row-time">{item.time}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {filtered.length > 8 && (
+                        <div className="history-footer-wrap">
+                          <button
+                            type="button"
+                            className="btn-history-more"
+                            onClick={() => setShowAllLogs(!showAllLogs)}
+                          >
+                            {showAllLogs ? 'Thu gọn' : 'Xem thêm'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Card 4: Thông tin người gửi */}
             <div className="order-card">
               <div className="order-card-header">
-                <div className="order-card-header-icon">
-                  <Store size={15} />
+                <div className="card-header-icon-box red">
+                  <CircleDot size={16} />
                 </div>
                 <h3 className="order-card-header-title">Thông tin người gửi</h3>
               </div>
-
               <div className="order-card-body">
-                <div className="order-address-text">
-                  25 Hồ Mễ Trì, Phường Mễ Trì, Quận Nam Từ Liêm, Thành phố Hà Nội
+                <div className="order-address-line">
+                  231/15 Dương Bá Trạc, Phường 01, Quận 8, Thành phố Hồ Chí Minh
                 </div>
-
                 <div className="order-contact-row">
-                  <span className="order-contact-name">
-                    Raspberry Pi VN | Raspberry Pi VN - {showPhoneSender ? '0928123688' : '092****688'}
+                  <span className="order-contact-text">
+                    <b>S275518 - SPAI - CÔNG TY TEST 1</b> | Bùi Duy Kha -{' '}
+                    {showPhoneSender ? '0399888077' : '039****077'}
                   </span>
                   <button
                     type="button"
@@ -311,247 +1603,755 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             </div>
+
+            {isInternal && (
+              <div className="order-card internal-operations-card">
+                <div className="order-card-header">
+                  <div className="card-header-icon-box slate">
+                    <Info size={16} />
+                  </div>
+                  <div>
+                    <h3 className="order-card-header-title">Thông tin vận hành nội bộ</h3>
+                    <span className="order-card-header-sub">Dữ liệu quản trị và đồng bộ trên SuperPlatform</span>
+                  </div>
+                </div>
+                <div className="order-card-body">
+                  <div className="internal-ops-list">
+                    <div className="internal-ops-row">
+                      <span className="ops-row-label">TRẠNG THÁI CHUẨN</span>
+                      <div className="ops-row-val">
+                        <strong>{order.spfCode}</strong>
+                        <small>{order.status}</small>
+                      </div>
+                    </div>
+                    <div className="internal-ops-row">
+                      <span className="ops-row-label">SHOP SỞ HỮU</span>
+                      <div className="ops-row-val">
+                        <strong>{order.shopId || 'S275518'}</strong>
+                        <small>{order.shopName || order.clientCode || 'AB Shop'}</small>
+                      </div>
+                    </div>
+                    <div className="internal-ops-row">
+                      <span className="ops-row-label">NGUỒN TẠO VÀ DỊCH VỤ</span>
+                      <div className="ops-row-val">
+                        <strong>{order.sourceChannel || 'marketplace'}</strong>
+                        <small>
+                          {order.serviceType === 'instant'
+                            ? 'Hỏa tốc · Giao nội thành'
+                            : order.serviceType || 'Tiêu chuẩn'}
+                        </small>
+                      </div>
+                    </div>
+                    <div className="internal-ops-row">
+                      <span className="ops-row-label">TÌNH TRẠNG ĐỒNG BỘ</span>
+                      <div className="ops-row-val">
+                        <strong className={order.syncStatus === 'FAILED' ? 'text-alert' : 'text-ok'}>
+                          {order.syncStatus === 'FAILED' ? 'Có lỗi đồng bộ' : 'Đã đồng bộ'}
+                        </strong>
+                        <small>{order.updatedAt ? formatDisplayDate(order.updatedAt) : '12/09/2026 - 09:35'}</small>
+                      </div>
+                    </div>
+                    <div className="internal-ops-row">
+                      <span className="ops-row-label">SỰ CỐ VẬN HÀNH</span>
+                      <div className="ops-row-val">
+                        <strong className={order.incidentType ? 'text-alert' : 'text-ok'}>
+                          {order.incidentType || 'Không ghi nhận'}
+                        </strong>
+                        <small>{order.supportStatus || 'Không có yêu cầu chờ xử lý'}</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isInternal && deliveryShipperStage && permission('view_shipper').allowed && (
+              <div className="order-card shipper-delivery-card">
+                <div className="order-card-header">
+                  <div className="card-header-icon-box blue">
+                    <UserRound size={16} />
+                  </div>
+                  <div>
+                    <h3 className="order-card-header-title">Shipper giao kiện</h3>
+                    <span className="order-card-header-sub">Thông tin lượt giao gần nhất</span>
+                  </div>
+                  <span
+                    className={`active-shipper-live-badge ${activeDeliveryStage ? '' : 'is-completed'}`}
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    {deliveryShipperBadge}
+                  </span>
+                </div>
+                <div className="order-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Box Shipper */}
+                  <div className="shipper-info-box">
+                    <div className="shipper-avatar">
+                      {order.shipperDeliveryName
+                        ? order.shipperDeliveryName
+                            .trim()
+                            .split(/\s+/)
+                            .slice(-2)
+                            .map((w) => w[0])
+                            .join('')
+                            .toUpperCase()
+                        : 'ĐQ'}
+                    </div>
+                    <div className="shipper-meta">
+                      <strong>{order.shipperDeliveryName || 'Trần Đình Quân'}</strong>
+                      <span>
+                        {order.shipperDeliveryCode ? `${order.shipperDeliveryCode} · ` : 'DRV-105 · '}
+                        {deliveryShipperStage?.carrier || 'Viettel Post'}
+                      </span>
+                    </div>
+                    <div className="shipper-phone-col">
+                      <span className="phone-label">Số điện thoại</span>
+                      <div className="phone-val-row">
+                        <strong>
+                          {showDeliveryShipperPhone
+                            ? order.shipperDeliveryPhone || '0912345519'
+                            : maskPhone(order.shipperDeliveryPhone || '0912345519')}
+                        </strong>
+                        <button
+                          type="button"
+                          className="order-icon-badge-btn"
+                          onClick={() => {
+                            if (!showDeliveryShipperPhone) {
+                              recordAccessAudit(order.id, {
+                                viewedBy: 'Nhân viên nội bộ SuperPlatform',
+                                field: 'shipper_delivery_phone',
+                                reason: 'Tra cứu phục vụ vận hành đơn hàng',
+                              });
+                              notify('Đã mở SĐT shipper và ghi nhận vào lịch sử truy cập.');
+                            }
+                            setShowDeliveryShipperPhone((current) => !current);
+                          }}
+                          title={
+                            showDeliveryShipperPhone
+                              ? 'Ẩn số điện thoại'
+                              : 'Xem số điện thoại (Chỉ người dùng nội bộ được phân quyền, có ghi log)'
+                          }
+                          aria-label={
+                            showDeliveryShipperPhone ? 'Ẩn số điện thoại' : 'Xem số điện thoại'
+                          }
+                        >
+                          {showDeliveryShipperPhone ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dòng thông báo bảo mật */}
+                  <div className="shipper-security-note">
+                    <ShieldCheck size={14} style={{ color: '#16a34a', flexShrink: 0, marginTop: 1 }} />
+                    <span>Chỉ người dùng nội bộ được phân quyền mới có thể xem. Mỗi lần mở SĐT đều được ghi vào lịch sử hành động.</span>
+                  </div>
+
+                  {/* Bằng chứng giao hàng (POD) */}
+                  {deliveryProofs.length > 0 && (
+                    <div className="delivery-proof-accordion-box">
+                      <button
+                        type="button"
+                        className="delivery-proof-trigger"
+                        onClick={() => setIsDeliveryProofExpanded((prev) => !prev)}
+                        aria-expanded={isDeliveryProofExpanded}
+                      >
+                        <div className="proof-trigger-left">
+                          <div className="proof-icon-box">
+                            <Camera size={16} />
+                          </div>
+                          <div className="proof-title-box">
+                            <strong>Bằng chứng giao hàng (POD)</strong>
+                            <span>Ảnh xác nhận từ nhà vận chuyển</span>
+                          </div>
+                        </div>
+                        <div className="proof-trigger-right">
+                          <span className="delivery-proof-verified">
+                            <ShieldCheck size={12} /> Đã xác thực
+                          </span>
+                          <span className="proof-count-text">{deliveryProofs.length} ảnh</span>
+                          {isDeliveryProofExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                        </div>
+                      </button>
+
+                      {isDeliveryProofExpanded && (
+                        <div className="delivery-proof-content">
+                          <div className="delivery-proof-body">
+                            {deliveryProofs.map((proof) => (
+                              <a
+                                key={proof.id}
+                                className="delivery-proof-item"
+                                href={proof.imageUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Mở ảnh bằng chứng giao hàng"
+                              >
+                                <img src={proof.imageUrl} alt="Ảnh bằng chứng giao hàng thành công" />
+                                <div className="delivery-proof-meta">
+                                  <strong>{proof.note}</strong>
+                                  <span>
+                                    {formatDisplayDate(proof.capturedAt)} · {proof.capturedBy}
+                                  </span>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Right Column (Cards 1, 2, 3, 4) */}
+          {/* Right Column (~38% width) */}
           <div className="order-col-right">
-            {/* Card 1: Theo dõi đơn hàng */}
+            {/* Card 1: Quan hệ chặng, NVC và mã vận đơn (Harmonized match media_1789532965240.png) */}
             <div className="order-card">
               <div className="order-card-header">
-                <div className="order-card-header-icon">
-                  <MapPin size={15} />
+                <div className="card-header-icon-box red">
+                  <Truck size={16} />
                 </div>
-                <h3 className="order-card-header-title">Theo dõi đơn hàng</h3>
+                <h3 className="order-card-header-title">
+                  {isInternal ? 'Quan hệ chặng, NVC và mã vận đơn' : 'Thông tin vận chuyển'}
+                </h3>
               </div>
-
               <div className="order-card-body">
-                <div className="order-tracking-timeline">
-                  {/* Step 1: Active current */}
-                  <div className="timeline-item">
-                    <div className="timeline-indicator-col">
-                      <div className="timeline-node-active">
-                        <Truck size={14} color="white" />
-                      </div>
-                      <div className="timeline-line-active" />
-                    </div>
-                    <div className="timeline-box">
-                      <div className="timeline-date">12/09/2026 • 11:26</div>
-                      <div className="timeline-status-active">Chờ Lấy Hàng</div>
-                      <div className="timeline-location">Quận Nam Từ Liêm, Thành phố Hà Nội</div>
-                    </div>
-                  </div>
+                <div className="transport-legs-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {transportLegs.map((leg) => {
+                    const isDone = leg.state === 'passed' || leg.statusText.includes('thành công') || leg.statusText.includes('kết thúc');
+                    const isActive = leg.state === 'active' || leg.statusText.includes('Đang') || leg.statusText.includes('Chờ');
+                    const borderClass = isDone ? 'border-status-done' : isActive ? 'border-status-active' : 'border-status-warn';
 
-                  {/* Step 2 */}
-                  <div className="timeline-item">
-                    <div className="timeline-indicator-col">
-                      <div className="timeline-node-ring" />
+                    return (
+                      <div
+                        key={leg.key}
+                        className={`route-leg-card-sync ${borderClass} ${isInternal ? 'internal-view' : 'shop-view'}`}
+                      >
+                        <div className="route-leg-left">
+                          <span className="route-leg-tag-pill">{leg.role.toUpperCase()}</span>
+                          <div className="route-leg-logo-frame">
+                            {renderCarrierLogoDetail(leg.carrier)}
+                          </div>
+                          <div className="route-leg-info">
+                            <strong className="route-leg-carrier-name">{leg.carrier}</strong>
+                            <div className="route-leg-waybill-wrap">
+                              <code>{leg.code}</code>
+                              <button
+                                type="button"
+                                className="btn-mini-copy"
+                                onClick={() => handleCopyWaybill(leg.code)}
+                                title="Sao chép mã vận đơn"
+                              >
+                                {copiedCode === leg.code ? (
+                                  <Check size={11} className="text-success" />
+                                ) : (
+                                  <Copy size={11} />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="route-leg-right">
+                          <span className={`route-leg-status-badge ${leg.state}`}>{leg.statusText}</span>
+                          <span className="route-leg-time-sub">
+                            Cập nhật {formatDisplayDate(leg.carrierUpdatedAt || order.updatedAt || order.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {order.serviceType === 'instant' && order.instantTracking && (
+                  <div className="instant-transport-summary">
+                    <div className="instant-transport-status-row">
+                      <span>
+                        <Truck size={14} />
+                        {order.instantTracking.statusLabel}
+                      </span>
                     </div>
-                    <div className="timeline-box">
-                      <div className="timeline-date">12/09/2026 • 11:26</div>
-                      <div className="timeline-status-done">Đã Tiếp Nhận</div>
-                      <div className="timeline-location">Quận Nam Từ Liêm, Thành phố Hà Nội</div>
+
+                    <div className="instant-transport-eta-row">
+                      <span>
+                        <Clock size={14} />
+                        <small>
+                          {order.instantTracking.state === 'DELIVERED' ? 'Trạng thái' : 'Dự kiến tới'}
+                        </small>
+                        <strong>
+                          {order.instantTracking.state === 'DELIVERED'
+                            ? 'Đã giao hàng'
+                            : `${order.instantTracking.etaMinutes} phút`}
+                        </strong>
+                      </span>
+                      <span>
+                        <MapPin size={14} />
+                        <small>Quãng đường còn lại</small>
+                        <strong>
+                          {order.instantTracking.state === 'DELIVERED'
+                            ? '0 km'
+                            : `${order.instantTracking.remainingDistanceKm} km`}
+                        </strong>
+                      </span>
                     </div>
+
+                    <button
+                      type="button"
+                      className="instant-transport-open-button"
+                      onClick={() => navigate(`/orders/${order.id}/live-tracking`)}
+                    >
+                      Xem vị trí và hành trình tài xế <ArrowRight size={14} />
+                    </button>
                   </div>
+                )}
+
+                {isInternal && (
+                  <div
+                    className="carrier-operations-link-box"
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 10,
+                      borderTop: '1px dashed #e2e8f0',
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/carrier-operations?orderId=${order.id}`)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#2563eb',
+                        fontSize: '12px',
+                        fontWeight: 650,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '4px 0',
+                      }}
+                      title="Xem sơ đồ thời gian và trạng thái của từng nhà vận chuyển"
+                    >
+                      Xem sơ đồ thời gian các nhà vận chuyển <ArrowRight size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Card 2: Hành trình đơn hàng theo từng chặng */}
+            <div className="order-card">
+              <div className="order-card-header">
+                <div className="card-header-left-title">
+                  <div className="card-header-icon-box blue">
+                    <Compass size={16} />
+                  </div>
+                  <h3 className="order-card-header-title">Hành trình đơn hàng theo từng chặng</h3>
+                </div>
+              </div>
+              <div className="order-card-body">
+                <div className="stage-journey-wrapper">
+                  {journeyStages.map((stage, sIdx) => {
+                    const isExpanded = Boolean(expandedStages[sIdx]);
+                    const isLastStage = sIdx === journeyStages.length - 1;
+                    // Timeline chuẩn hoá phải giống giao diện Shop. Dữ liệu trạng thái gốc
+                    // được tách riêng ở phần chi tiết NVC phía trên.
+                    const visibleEvents = stage.events.filter((evt) => evt.visibility === 'shop');
+
+                    return (
+                      <div key={sIdx} className="stage-section-block">
+                        {/* Flow Divider Banner */}
+                        <div className="flow-label-banner">
+                          <span>{stage.flow}</span>
+                          {stage.flowNote && (
+                            <span className="flow-note-text">{stage.flowNote}</span>
+                          )}
+                        </div>
+
+                        {/* Stage Row with Timeline Column */}
+                        <div className="stage-flow-row">
+                          <div className="stage-timeline-col">
+                            <div className={`stage-status-circle ${stage.state}`}>
+                              {stage.state === 'done'
+                                ? '✓'
+                                : stage.state === 'error'
+                                  ? '✕'
+                                  : stage.state === 'warn'
+                                    ? '!'
+                                    : '•'}
+                            </div>
+                            {!isLastStage && <div className="stage-line-connector" />}
+                          </div>
+
+                          <div
+                            className={`stage-cardlet ${isExpanded ? 'is-expanded' : 'is-collapsed'}`}
+                          >
+                            <div
+                              className="stage-cardlet-header"
+                              onClick={() => toggleStage(sIdx)}
+                              title="Bấm để mở rộng / thu gọn danh sách sự kiện chặng"
+                              role="button"
+                              tabIndex={0}
+                            >
+                              <div className="stage-header-main">
+                                <div className="stage-header-top-row">
+                                  <span className="stage-title-text">
+                                    Chặng {sIdx + 1}: {stage.name}
+                                  </span>
+                                  <span className="stage-chevron-btn">
+                                    {isExpanded ? (
+                                      <ChevronUp size={16} />
+                                    ) : (
+                                      <ChevronDown size={16} />
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="stage-header-bottom-row">
+                                  <span className="stage-carrier-tag">NVC: {stage.carrier}</span>
+                                  <span
+                                    className={`stage-status-badge ${stage.state}`}
+                                    title={stage.status}
+                                  >
+                                    {stage.status}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="stage-cardlet-events">
+                                {visibleEvents.length > 0 ? (
+                                  visibleEvents.map((evt, eIdx) => {
+                                    const isLastEvent = eIdx === visibleEvents.length - 1;
+                                    const dotClass =
+                                      isLastEvent &&
+                                      (stage.state === 'warn' || stage.state === 'error')
+                                        ? 'dot-warn'
+                                        : 'dot-normal';
+
+                                    return (
+                                      <div
+                                        key={eIdx}
+                                        className={`stage-event-line ${evt.visibility === 'internal' ? 'internal-event' : ''}`}
+                                      >
+                                        <div className="stage-event-left">
+                                          <span className={`stage-event-dot ${dotClass}`} />
+                                          <div className="stage-event-details">
+                                            <span className="stage-event-label">
+                                              <b>{evt.carrier}</b> — {evt.label}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <time className="stage-event-time">{evt.time}</time>
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  <div className="stage-no-events-muted">
+                                    Không có sự kiện nào ở chặng này.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            {/* Card 2: Phí và tiền thu hộ */}
+            {/* Card 3: Phí và tiền thu hộ */}
             <div className="order-card">
               <div className="order-card-header">
-                <div className="order-card-header-icon">
-                  <Receipt size={15} />
+                <div className="card-header-icon-box slate">
+                  <Receipt size={16} />
                 </div>
                 <h3 className="order-card-header-title">Phí và tiền thu hộ</h3>
               </div>
-
               <div className="order-card-body">
-                <div className="fee-table">
-                  <div className="fee-row">
-                    <span className="fee-label-with-icon">
-                      Trị giá hàng <Info size={13} className="fee-info-icon" />
+                <div className="fee-breakdown-table">
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">
+                      Trị giá hàng <Info size={12} className="fee-info-icon" />
                     </span>
-                    <span className="fee-val-strong">{money(order.value || 200000)}</span>
+                    <span className="fee-item-val-bold">{money(order.value || 100000)}</span>
                   </div>
 
-                  <div className="fee-row">
-                    <span>Khối lượng</span>
-                    <span className="fee-val-strong">{order.weight || 750} gr</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Khối lượng</span>
+                    <span className="fee-item-val-bold">{order.weight || 334} gr</span>
                   </div>
 
-                  <div className="fee-divider" />
+                  <div className="fee-item-divider" />
 
-                  <div className="fee-row">
-                    <span>Phí giao hàng (Người gửi trả)</span>
-                    <span className="fee-val-red">30.000 đ</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Phí giao hàng (Cấn trừ COD)</span>
+                    <span className="fee-item-val-red">14.000 đ</span>
                   </div>
 
-                  <div className="fee-row">
-                    <span>Phí bảo hiểm</span>
-                    <span className="fee-val-red">0 đ</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Phí bảo hiểm</span>
+                    <span className="fee-item-val-red">0 đ</span>
                   </div>
 
-                  <div className="fee-row">
-                    <span>Phí trả hàng</span>
-                    <span className="fee-val-red">0 đ</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Phí trả hàng</span>
+                    <span className="fee-item-val-red">0 đ</span>
                   </div>
 
-                  <div className="fee-row">
-                    <span>Phí hàng đổi</span>
-                    <span className="fee-val-red">0 đ</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Phí hàng đổi</span>
+                    <span className="fee-item-val-red">0 đ</span>
                   </div>
 
-                  <div className="fee-row">
-                    <span>Phí đổi địa chỉ</span>
-                    <span className="fee-val-red">0 đ</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Phí đổi địa chỉ</span>
+                    <span className="fee-item-val-red">0 đ</span>
                   </div>
 
-                  <div className="fee-row">
-                    <span>Phí thu hộ</span>
-                    <span className="fee-val-red">0 đ</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Phí thu hộ</span>
+                    <span className="fee-item-val-red">0 đ</span>
                   </div>
 
-                  <div className="fee-divider" />
+                  <div className="fee-item-divider" />
 
-                  <div className="fee-row">
-                    <span className="fee-label-with-icon">
-                      Tổng phí vận chuyển <Info size={13} className="fee-info-icon" />
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">
+                      Tổng phí vận chuyển <Info size={12} className="fee-info-icon" />
                     </span>
-                    <span className="fee-val-green">30.000 đ</span>
+                    <span className="fee-item-val-red">14.000 đ</span>
                   </div>
 
-                  <div className="fee-row">
-                    <span>Tiền thu hộ</span>
-                    <span className="fee-val-strong">{money(order.cod || 200000)}</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Tiền thu hộ</span>
+                    <span className="fee-item-val-bold">{money(order.cod)}</span>
                   </div>
 
-                  <div className="fee-row fee-row-total">
-                    <span className="fee-label-with-icon">
-                      Tiền thu người nhận <Info size={13} className="fee-info-icon" />
-                    </span>
-                    <span className="fee-val-red-big">{money(order.cod || 200000)}</span>
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Tiền thu người nhận</span>
+                    <span className="fee-item-val-green">0 đ</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Card 3: Đánh giá trải nghiệm */}
+            {/* Card 4: Đánh giá trải nghiệm (matching Screenshot 1) */}
             <div className="order-card">
               <div className="order-card-header">
-                <div className="order-card-header-icon">
-                  <Star size={15} />
+                <div className="card-header-icon-box red">
+                  <Star size={16} fill="#e11d48" color="#e11d48" />
                 </div>
                 <h3 className="order-card-header-title">Đánh giá trải nghiệm</h3>
               </div>
-
-              <div className="order-card-body" style={{ display: 'flex', justifyContent: 'center', padding: '6px 0' }}>
+              <div className="order-card-body experience-rating-body">
                 <div className="rating-stars-row">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
                       type="button"
-                      className="star-btn"
+                      className={`btn-star-rating ${star <= (hoverRating || rating) ? 'active' : ''}`}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
                       onClick={() => {
                         setRating(star);
-                        notify(`Cảm ơn bạn đã đánh giá ${star} sao!`);
+                        notify(`Cảm ơn bạn đã đánh giá ${star} sao cho đơn hàng ${order.id}!`);
                       }}
+                      title={`Đánh giá ${star} sao`}
+                      aria-label={`Đánh giá ${star} sao`}
                     >
-                      <Star
-                        size={22}
-                        fill={star <= rating ? '#f59e0b' : 'none'}
-                        color={star <= rating ? '#f59e0b' : '#cbd5e1'}
-                      />
+                      <Star size={28} />
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Card 4: Mã QR / Mã Vạch */}
+            {/* Card 5: Mã QR / Mã Vạch (matching Screenshot 1) */}
             <div className="order-card">
               <div className="order-card-header">
-                <div className="order-card-header-icon">
-                  <QrCode size={15} />
+                <div className="card-header-icon-box red">
+                  <QrCode size={16} color="#e11d48" />
                 </div>
                 <h3 className="order-card-header-title">Mã QR / Mã Vạch</h3>
+                <button
+                  type="button"
+                  className="print-history-summary-btn"
+                  onClick={() => setShowPrintHistory(true)}
+                >
+                  <History size={14} /> Đã in {order.printHistory?.length || 0} lần · Xem lịch sử
+                </button>
               </div>
-
-              <div className="order-card-body" style={{ textAlign: 'center', padding: '12px 0 8px' }}>
-                <SvgQrCode />
-                <SvgBarcode code={order.id} />
+              <div className="order-card-body qr-barcode-card-body">
+                <div className="qr-barcode-center">
+                  <QrCodeSvg
+                    value={order.shippingInfo?.deliveryTracking || 'SPXVN066263841279'}
+                    size={140}
+                  />
+                  <div className="qr-barcode-divider" />
+                  <BarcodeSvg
+                    value={order.shippingInfo?.deliveryTracking || 'SPXVN066263841279'}
+                    width={220}
+                    height={48}
+                  />
+                  <div className="barcode-code-text">
+                    {order.shippingInfo?.deliveryTracking || 'SPXVN066263841279'}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
+
       </div>
 
-      {/* Fixed Bottom Action Toolbar */}
-      <div className="detail-bottom-toolbar">
-        <button
-          type="button"
-          className="btn-toolbar-action"
-          onClick={() => navigate(`/create?copy=${order.id}`)}
-        >
-          <RotateCcw size={15} color="#ef4444" />
-          <span>Tạo lại đơn</span>
-        </button>
+      {isInternal ? (
+        <div className="detail-bottom-toolbar internal-detail-toolbar">
+          {permission('confirm_return').allowed && order.spfCode === 'SPF-1001' && (
+            <button
+              type="button"
+              className="btn-toolbar-red-primary"
+              onClick={() => openOperation('confirm-return')}
+            >
+              <CheckCircle2 size={16} />
+              <span>XÁC NHẬN CHUYỂN HOÀN</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-toolbar-red-primary"
+            onClick={() => navigate(`/requests?orderId=${order.id}`)}
+          >
+            <CheckCircle2 size={16} />
+            <span>XỬ LÝ YÊU CẦU</span>
+          </button>
+          <button
+            type="button"
+            className="btn-toolbar-muted"
+            onClick={() => openOperation('change-carrier')}
+            disabled={!permission('change_carrier').allowed}
+          >
+            <Truck size={16} />
+            <span>ĐỔI NVC</span>
+          </button>
+          <button
+            type="button"
+            className="btn-toolbar-blue-primary"
+            onClick={() => navigate(`/orders/${order.id}/print`)}
+          >
+            <Printer size={16} />
+            <span>IN NHÃN</span>
+          </button>
 
-        <button
-          type="button"
-          className="btn-toolbar-action"
-          onClick={() => setShowSupportModal(true)}
-        >
-          <MessageSquare size={15} color="#ef4444" />
-          <span>Gửi yêu cầu</span>
-        </button>
+          {permission('request_redelivery').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-red-primary"
+              onClick={() => openOperation('redelivery')}
+            >
+              <RotateCcw size={16} />
+              <span>YÊU CẦU GIAO LẠI</span>
+            </button>
+          )}
 
-        <button
-          type="button"
-          className="btn-toolbar-action"
-          onClick={() => navigate(`/create?edit=${order.id}`)}
-        >
-          <Pencil size={15} color="#ef4444" />
-          <span>Chỉnh sửa</span>
-        </button>
+          {permission('request_return').allowed && (
+            <button
+              type="button"
+              className="btn-toolbar-red-outline"
+              onClick={() => openOperation('return')}
+            >
+              <Truck size={15} />
+              <span>YÊU CẦU CHUYỂN HOÀN</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="detail-bottom-toolbar">
+          {/* 1. Tạo lại đơn */}
+          {!isInternal && (
+            <button
+              type="button"
+              className="btn-toolbar-red-primary"
+              onClick={() => navigate(`/create?copy=${order.id}`)}
+            >
+              <RotateCcw size={16} />
+              <span>TẠO LẠI ĐƠN</span>
+            </button>
+          )}
 
-        <button
-          type="button"
-          className="btn-toolbar-action"
-          onClick={() => setShowEditCodModal(true)}
-        >
-          <DollarSign size={15} color="#ef4444" />
-          <span>Sửa COD</span>
-        </button>
+          {/* 2. Gửi yêu cầu */}
+          <button
+            type="button"
+            className="btn-toolbar-red-outline"
+            onClick={() => setShowSupportModal(true)}
+          >
+            <Send size={15} />
+            <span>GỬI YÊU CẦU</span>
+          </button>
 
-        <button
-          type="button"
-          className="btn-toolbar-action"
-          onClick={() => setShowEditInfoModal(true)}
-        >
-          <FileEdit size={15} color="#ef4444" />
-          <span>Sửa thông tin</span>
-        </button>
+          {/* 3. Sửa COD */}
+          <button
+            type="button"
+            className="btn-toolbar-muted"
+            disabled={!permission('edit_cod').allowed}
+            onClick={() => setShowEditCodModal(true)}
+          >
+            <DollarSign size={15} />
+            <span>SỬA COD</span>
+          </button>
 
-        <button
-          type="button"
-          className="btn-toolbar-action btn-cancel"
-          onClick={() => setShowCancelModal(true)}
-        >
-          <XCircle size={15} color="#ef4444" />
-          <span>Hủy đơn</span>
-        </button>
+          {/* 4. Hủy đơn */}
+          <button
+            type="button"
+            className="btn-toolbar-muted"
+            disabled={!permission('cancel_order').allowed}
+            onClick={() => setShowCancelModal(true)}
+          >
+            <X size={15} />
+            <span>HỦY ĐƠN</span>
+          </button>
 
-        <button
-          type="button"
-          className="btn-blue-action"
-          onClick={() => setShowPrintModal(true)}
-        >
-          <Printer size={15} />
-          <span>In tem dán</span>
-        </button>
-      </div>
+          {/* 5. Thay đổi thông tin */}
+          <button
+            type="button"
+            className="btn-toolbar-muted"
+            disabled={!permission('edit_order').allowed}
+            onClick={() => setShowEditInfoModal(true)}
+          >
+            <Pencil size={15} />
+            <span>THAY ĐỔI THÔNG TIN</span>
+          </button>
 
+          <button
+            type="button"
+            className="btn-toolbar-muted"
+            disabled={!permission('add_goods_images').allowed}
+            onClick={() => openOperation('images')}
+          >
+            <ImagePlus size={15} />
+            <span>THÊM ẢNH HÀNG</span>
+          </button>
+
+          {/* 6. In tem đơn (Chuyển sang trang in tem chuyên dụng theo Screenshot 2) */}
+          <button
+            type="button"
+            className="btn-toolbar-blue-primary"
+            onClick={() => navigate(`/orders/${order.id}/print`)}
+          >
+            <Printer size={16} />
+            <span>IN NHÃN</span>
+          </button>
+        </div>
+      )}
       {/* Support Dialog */}
+      {showPrintHistory && (
+        <PrintHistoryDrawer order={order} onClose={() => setShowPrintHistory(false)} />
+      )}
+
       {showSupportModal && (
         <SupportDialog order={order} onClose={() => setShowSupportModal(false)} />
       )}
@@ -603,7 +2403,9 @@ export default function OrderDetailPage() {
           }
         >
           <div style={{ textAlign: 'center', padding: '10px 0' }}>
-            <p>Chuẩn bị in tem khổ <b>K46 (4 in x 6 in)</b> cho đơn hàng {order.id}</p>
+            <p>
+              Chuẩn bị in tem khổ <b>K46 (4 in x 6 in)</b> cho đơn hàng {order.id}
+            </p>
           </div>
         </Modal>
       )}
@@ -613,12 +2415,20 @@ export default function OrderDetailPage() {
         <Modal
           title="Yêu cầu sửa tiền thu hộ (COD)"
           onClose={() => setShowEditCodModal(false)}
+          footer={null}
         >
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const data = new FormData(e.currentTarget);
+              const nextCod = Number(data.get('cod'));
+              if (!Number.isFinite(nextCod) || nextCod < 0) {
+                notify('Tiền COD mới không hợp lệ.');
+                return;
+              }
+              updateOrder(order.id, { ...order, cod: nextCod });
               setShowEditCodModal(false);
-              notify('Đã gửi yêu cầu thay đổi tiền COD thành công!');
+              notify('Đã cập nhật tiền COD thành công!');
             }}
             style={{ display: 'grid', gap: 14 }}
           >
@@ -628,11 +2438,22 @@ export default function OrderDetailPage() {
             </label>
             <label className="field">
               <span>Tiền COD mới mong muốn (VNĐ) *</span>
-              <input placeholder="Nhập số tiền COD mới..." required defaultValue={order.cod} />
+              <input
+                name="cod"
+                type="number"
+                min="0"
+                placeholder="Nhập số tiền COD mới..."
+                required
+                defaultValue={order.cod}
+              />
             </label>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-              <Button type="button" onClick={() => setShowEditCodModal(false)}>Hủy</Button>
-              <Button type="submit" variant="primary">Lưu yêu cầu</Button>
+              <Button type="button" onClick={() => setShowEditCodModal(false)}>
+                Hủy
+              </Button>
+              <Button type="submit" variant="primary">
+                Lưu yêu cầu
+              </Button>
             </div>
           </form>
         </Modal>
@@ -643,32 +2464,295 @@ export default function OrderDetailPage() {
         <Modal
           title="Yêu cầu sửa thông tin đơn hàng"
           onClose={() => setShowEditInfoModal(false)}
+          footer={null}
         >
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const data = new FormData(e.currentTarget);
+              updateOrder(order.id, {
+                ...order,
+                name: String(data.get('name') || '').trim(),
+                phone: String(data.get('phone') || '').trim(),
+                note: String(data.get('note') || '').trim(),
+              });
               setShowEditInfoModal(false);
-              notify('Đã gửi yêu cầu điều chỉnh thông tin đơn thành công!');
+              notify('Đã cập nhật thông tin Order thành công!');
             }}
             style={{ display: 'grid', gap: 14 }}
           >
             <label className="field">
               <span>Tên người nhận</span>
-              <input defaultValue={order.name} />
+              <input name="name" required defaultValue={order.name} />
             </label>
             <label className="field">
               <span>Số điện thoại người nhận</span>
-              <input defaultValue={order.phone} />
+              <input name="phone" required defaultValue={order.phone} />
             </label>
             <label className="field">
               <span>Ghi chú giao hàng mới</span>
-              <textarea rows={2} defaultValue={order.note} />
+              <textarea name="note" rows={2} defaultValue={order.note} />
             </label>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-              <Button type="button" onClick={() => setShowEditInfoModal(false)}>Hủy</Button>
-              <Button type="submit" variant="primary">Lưu thay đổi</Button>
+              <Button type="button" onClick={() => setShowEditInfoModal(false)}>
+                Hủy
+              </Button>
+              <Button type="submit" variant="primary">
+                Lưu thay đổi
+              </Button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {operationModal === 'redelivery' && (
+        <Modal
+          title="Yêu cầu giao lại"
+          onClose={() => !isSubmitting && setOperationModal(null)}
+          footer={
+            <>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>
+                Quay lại
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isSubmitting}
+                onClick={() =>
+                  submitOperation(
+                    () => applyOperation(order.id, { type: 'request-redelivery' }),
+                    'Đã gửi yêu cầu giao lại. Trạng thái Order đã được cập nhật.',
+                  )
+                }
+              >
+                {isSubmitting ? 'Đang gửi…' : 'Xác nhận giao lại'}
+              </Button>
+            </>
+          }
+        >
+          <div className="order-operation-content">
+            <div className="operation-callout warning">
+              <AlertTriangle size={18} />
+              <div>
+                <strong>NVC sẽ thực hiện thêm một lượt giao</strong>
+                <span>Hãy chắc chắn người nhận có thể nhận hàng và số điện thoại còn liên lạc được.</span>
+              </div>
+            </div>
+            {isSubmitting && <AsyncStatePanel state="processing" compact />}
+            {operationError && <div className="operation-inline-error">{operationError}</div>}
+          </div>
+        </Modal>
+      )}
+
+      {operationModal === 'return' && (
+        <Modal
+          title="Yêu cầu chuyển hoàn"
+          onClose={() => !isSubmitting && setOperationModal(null)}
+          footer={
+            <>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>
+                Quay lại
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isSubmitting || !operationReason.trim()}
+                onClick={() =>
+                  submitOperation(
+                    () =>
+                      applyOperation(order.id, {
+                        type: 'request-return',
+                        reason: operationReason.trim(),
+                      }),
+                    'Đã gửi yêu cầu chuyển hoàn. Shop có thể tiếp tục theo dõi trên hành trình.',
+                  )
+                }
+              >
+                {isSubmitting ? 'Đang gửi…' : 'Gửi yêu cầu'}
+              </Button>
+            </>
+          }
+        >
+          <div className="order-operation-content">
+            <label className="field">
+              <span>Lý do chuyển hoàn *</span>
+              <textarea
+                rows={3}
+                value={operationReason}
+                onChange={(event) => setOperationReason(event.target.value)}
+                placeholder="Ví dụ: Người nhận từ chối nhận hàng"
+              />
+            </label>
+            <p className="operation-help-text">
+              Sau khi gửi, Order chuyển sang “Chờ xác nhận chuyển hoàn”. Shop không thể tự xác nhận bước này.
+            </p>
+            {isSubmitting && <AsyncStatePanel state="processing" compact />}
+            {operationError && <div className="operation-inline-error">{operationError}</div>}
+          </div>
+        </Modal>
+      )}
+
+      {operationModal === 'confirm-return' && (
+        <Modal
+          title="Xác nhận chuyển hoàn"
+          onClose={() => !isSubmitting && setOperationModal(null)}
+          footer={
+            <>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>
+                Quay lại
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isSubmitting}
+                onClick={() =>
+                  submitOperation(
+                    () => applyOperation(order.id, { type: 'confirm-return' }),
+                    'Đã xác nhận chuyển hoàn cho Order.',
+                  )
+                }
+              >
+                {isSubmitting ? 'Đang xác nhận…' : 'Xác nhận chuyển hoàn'}
+              </Button>
+            </>
+          }
+        >
+          <div className="operation-callout warning">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Đây là thao tác nghiệp vụ nội bộ</strong>
+              <span>Order sẽ đi vào luồng hoàn và Shop chỉ có thể theo dõi tiến trình.</span>
+            </div>
+          </div>
+          {isSubmitting && <AsyncStatePanel state="processing" compact />}
+          {operationError && <div className="operation-inline-error">{operationError}</div>}
+        </Modal>
+      )}
+
+      {operationModal === 'change-carrier' && (
+        <Modal
+          title="Đổi nhà vận chuyển"
+          onClose={() => !isSubmitting && setOperationModal(null)}
+          footer={
+            <>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>
+                Hủy
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isSubmitting || !operationReason.trim()}
+                onClick={() =>
+                  submitOperation(
+                    () =>
+                      applyOperation(order.id, {
+                        type: 'change-carrier',
+                        carrier: selectedCarrier,
+                        reason: operationReason.trim(),
+                        changedBy: 'Nội bộ SuperPlatform',
+                      }),
+                    `Đã chuyển Order sang ${selectedCarrier}. Đang chờ NVC tiếp nhận.`,
+                  )
+                }
+              >
+                {isSubmitting ? 'Đang đổi NVC…' : 'Xác nhận đổi NVC'}
+              </Button>
+            </>
+          }
+        >
+          <div className="order-operation-content">
+            <div className="carrier-change-summary">
+              <span>NVC hiện tại</span>
+              <strong>{order.shippingInfo?.deliveryCarrier || order.selectedCarrier || 'Chưa gán'}</strong>
+              <ArrowRight size={18} />
+              <span>NVC mới</span>
+              <strong>{selectedCarrier}</strong>
+            </div>
+            <label className="field">
+              <span>Chọn NVC mới *</span>
+              <select value={selectedCarrier} onChange={(event) => setSelectedCarrier(event.target.value)}>
+                <option value="GHN">GHN · 32.000đ · 1–2 ngày</option>
+                <option value="Viettel Post">Viettel Post · 34.500đ · 2–3 ngày</option>
+                <option value="SPX Express">SPX Express · 29.000đ · 2–4 ngày</option>
+                <option value="J&T Express">J&amp;T Express · 31.500đ · 2–3 ngày</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Lý do đổi NVC *</span>
+              <textarea
+                rows={3}
+                value={operationReason}
+                onChange={(event) => setOperationReason(event.target.value)}
+                placeholder="Nhập lý do để lưu vào lịch sử kiểm soát"
+              />
+            </label>
+            <div className="operation-callout warning">
+              <AlertTriangle size={18} />
+              <div>
+                <strong>Mã vận đơn cũ có thể không còn hiệu lực</strong>
+                <span>Phí và thời gian giao dự kiến sẽ được tính lại sau khi NVC mới tiếp nhận.</span>
+              </div>
+            </div>
+            {isSubmitting && <AsyncStatePanel state="processing" compact />}
+            {operationError && <div className="operation-inline-error">{operationError}</div>}
+          </div>
+        </Modal>
+      )}
+
+      {operationModal === 'images' && (
+        <Modal
+          title="Thêm ảnh hàng hóa"
+          onClose={() => !isSubmitting && setOperationModal(null)}
+          footer={
+            <>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>
+                Hủy
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isSubmitting || pendingImages.length === 0}
+                onClick={() =>
+                  submitOperation(
+                    () => applyOperation(order.id, { type: 'add-goods-images', images: pendingImages }),
+                    `Đã thêm ${pendingImages.length} ảnh hàng hóa.`,
+                  )
+                }
+              >
+                {isSubmitting ? 'Đang tải lên…' : `Lưu ${pendingImages.length || ''} ảnh`}
+              </Button>
+            </>
+          }
+        >
+          <div className="order-operation-content">
+            <label className="goods-image-dropzone">
+              <ImagePlus size={24} />
+              <strong>Chọn ảnh hàng hóa</strong>
+              <span>PNG, JPG hoặc WEBP · tối đa 5 ảnh · 5 MB/ảnh</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                multiple
+                onChange={(event) => handleImageFiles(event.target.files)}
+              />
+            </label>
+            {pendingImages.length > 0 && (
+              <div className="goods-image-preview-grid">
+                {pendingImages.map((image) => (
+                  <div key={image.id} className="goods-image-preview">
+                    <img src={image.imageUrl} alt={image.fileName} />
+                    <span>{image.fileName}</span>
+                    <button
+                      type="button"
+                      aria-label={`Xóa ${image.fileName}`}
+                      onClick={() =>
+                        setPendingImages((current) => current.filter((item) => item.id !== image.id))
+                      }
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {isSubmitting && <AsyncStatePanel state="processing" compact />}
+            {operationError && <div className="operation-inline-error">{operationError}</div>}
+          </div>
         </Modal>
       )}
     </div>

@@ -85,14 +85,19 @@ export function EditOrderView({ order, onSave, onBack }: EditOrderViewProps) {
           <span className="edit-order-sub">Sửa đơn hàng</span>
           <div className="edit-order-id-row">
             <h1 className="edit-order-id">{order.id}</h1>
-            <button type="button" className="btn-icon-copy" onClick={handleCopyId} title="Sao chép mã đơn">
+            <button
+              type="button"
+              className="btn-icon-copy"
+              onClick={handleCopyId}
+              title="Sao chép mã đơn"
+            >
               <Copy size={16} />
             </button>
           </div>
         </div>
         <div className="edit-order-meta">
           <span className="edit-order-date">{order.createdAt || '12/09/2026 • 11:26'}</span>
-          <span className="edit-order-status-badge">{order.status || 'Chờ Lấy Hàng'}</span>
+          <span className="edit-order-status-badge">{order.status || 'Chờ lấy hàng'}</span>
         </div>
       </div>
 
@@ -263,11 +268,7 @@ export function EditOrderView({ order, onSave, onBack }: EditOrderViewProps) {
                   />
                   <span className="currency-unit">đ</span>
                   {formData.cod > 0 && (
-                    <button
-                      type="button"
-                      className="btn-clear"
-                      onClick={() => update({ cod: 0 })}
-                    >
+                    <button type="button" className="btn-clear" onClick={() => update({ cod: 0 })}>
                       <X size={14} />
                     </button>
                   )}

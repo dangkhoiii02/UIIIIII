@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, AlertTriangle, Truck, Package, MapPin } from 'lucide-react';
 import type { Order } from '../model/types';
+import { getSpfLifecyclePhase, isSpfFailureStatus } from '../model/spf-status-catalog';
 
 interface TimelineEvent {
   id: string;
@@ -14,6 +15,7 @@ interface TimelineEvent {
 
 export function OrderTimeline({ order }: { order: Order }) {
   const getTimelineEvents = (ord: Order): TimelineEvent[] => {
+    const phase = getSpfLifecyclePhase(ord.spfCode);
     const events: TimelineEvent[] = [
       {
         id: '1',
@@ -26,12 +28,15 @@ export function OrderTimeline({ order }: { order: Order }) {
       },
     ];
 
-    if (ord.status === 'Đã hủy') {
+    if (phase === 'cancelled') {
       events.push({
         id: '2',
         stage: 'pickup',
-        title: 'Đơn hàng đã bị hủy',
-        subtitle: 'Yêu cầu vận chuyển đã ngừng',
+        title: ord.status,
+        subtitle:
+          ord.spfCode === 'SPF-0201'
+            ? 'Yêu cầu vận chuyển đã ngừng'
+            : 'Yêu cầu hủy tại nhà vận chuyển chưa thành công',
         time: '12/09/2026 11:45',
         status: 'failed',
       });
@@ -39,7 +44,7 @@ export function OrderTimeline({ order }: { order: Order }) {
     }
 
     // Pickup stage
-    const isPicked = ord.status !== 'Chờ Lấy Hàng';
+    const isPicked = !['creating', 'cancelled'].includes(phase) && ord.spfCode !== 'SPF-0301';
     events.push({
       id: '2',
       stage: 'pickup',
@@ -55,7 +60,7 @@ export function OrderTimeline({ order }: { order: Order }) {
 
     // Transit stage
     if (isPicked) {
-      const inTransit = ord.status === 'Đang giao hàng' || ord.status === 'Đã giao hàng';
+      const inTransit = ['delivery', 'delivered', 'return', 'returned'].includes(phase);
       events.push({
         id: '3',
         stage: 'transit',
@@ -69,21 +74,21 @@ export function OrderTimeline({ order }: { order: Order }) {
     }
 
     // Delivery stage
-    if (ord.status === 'Đang giao hàng' || ord.status === 'Hoãn giao hàng') {
+    if (phase === 'delivery') {
+      const failed = isSpfFailureStatus(ord.spfCode);
       events.push({
         id: '4',
         stage: 'delivery',
-        title: ord.status === 'Hoãn giao hàng' ? 'Hoãn giao hàng' : 'Đang giao hàng',
-        subtitle:
-          ord.status === 'Hoãn giao hàng'
-            ? 'Người nhận hẹn lại thời gian giao'
-            : 'Shipper đang trên đường giao kiện cho Người nhận',
+        title: ord.status,
+        subtitle: failed
+          ? 'Lần xử lý gần nhất chưa thành công; đơn đang chờ bước tiếp theo'
+          : 'Shipper đang trên đường giao kiện cho Người nhận',
         time: '13/09/2026 09:15',
-        status: ord.status === 'Hoãn giao hàng' ? 'failed' : 'current',
+        status: failed ? 'failed' : 'current',
         location: ord.address,
         carrier: 'SuperShip Express',
       });
-    } else if (ord.status === 'Đã giao hàng') {
+    } else if (ord.spfCode === 'SPF-0901') {
       events.push({
         id: '4',
         stage: 'delivery',
@@ -94,14 +99,15 @@ export function OrderTimeline({ order }: { order: Order }) {
         location: ord.address,
         carrier: 'SuperShip Express',
       });
-    } else if (ord.status === 'Đang chuyển hoàn' || ord.status === 'Đã trả hàng') {
+    } else if (phase === 'return' || phase === 'returned' || ord.spfCode === 'SPF-0902') {
       events.push({
         id: '4',
         stage: 'return',
-        title: ord.status === 'Đã trả hàng' ? 'Đã trả hàng hoàn về Shop' : 'Đang chuyển hoàn',
+        title: phase === 'returned' ? ord.status : 'Đang chuyển hoàn',
         subtitle: 'Hàng được quay đầu trả lại điểm gửi ban đầu',
         time: '13/09/2026 11:00',
-        status: ord.status === 'Đã trả hàng' ? 'done' : 'current',
+        status:
+          phase === 'returned' ? 'done' : isSpfFailureStatus(ord.spfCode) ? 'failed' : 'current',
         location: 'Kho Hồ Mễ Trì',
         carrier: 'SuperShip Express',
       });

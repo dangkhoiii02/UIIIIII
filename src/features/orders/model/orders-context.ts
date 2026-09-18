@@ -1,11 +1,22 @@
 import { createContext, useContext } from 'react';
-import type { Order, OrderInput } from './types';
+import type {
+  AccessAuditEntry,
+  Order,
+  OrderInput,
+  OrderOperation,
+  PrintHistoryEntry,
+} from './types';
 export interface OrdersContextValue {
   orders: Order[];
   createOrders: (inputs: OrderInput[]) => void;
   updateOrder: (id: string, input: OrderInput) => void;
   cancelOrder: (id: string) => void;
-  markPrinted: (ids: string[]) => void;
+  markPrinted: (ids: string[], detail?: Partial<PrintHistoryEntry>) => void;
+  recordAccessAudit: (
+    id: string,
+    detail: Omit<AccessAuditEntry, 'id' | 'viewedAt'>,
+  ) => void;
+  applyOperation: (id: string, operation: OrderOperation) => Order;
   resetDb: () => void;
 }
 export const OrdersContext = createContext<OrdersContextValue | null>(null);

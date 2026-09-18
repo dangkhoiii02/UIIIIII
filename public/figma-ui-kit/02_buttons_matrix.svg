@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 480" width="920" height="480">
+  <defs>
+    <style>
+      .title { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; fill: #0f172a; }
+      .sub { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; fill: #64748b; }
+      .col-lbl { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 700; fill: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+      .btn-text-white { font-family: 'Inter', system-ui, sans-serif; font-size: 13px; font-weight: 700; fill: #ffffff; }
+      .btn-text-red { font-family: 'Inter', system-ui, sans-serif; font-size: 13px; font-weight: 700; fill: #e11d48; }
+      .btn-text-slate { font-family: 'Inter', system-ui, sans-serif; font-size: 13px; font-weight: 600; fill: #334155; }
+      .card { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; rx: 12px; }
+    </style>
+  </defs>
+
+  <rect width="920" height="480" fill="#f8fafc"/>
+
+  <!-- Header -->
+  <text x="32" y="44" class="title" font-size="22">SuperPlatform — Button Matrix &amp; Action System</text>
+  <text x="32" y="66" class="sub">Ma trận các biến thể nút bấm (Primary, Outline, Toolbar, Excel Pills) dùng chung cho module Order</text>
+
+  <!-- Section: Buttons Grid -->
+  <g transform="translate(32, 90)">
+    <rect width="856" height="360" class="card"/>
+
+    <!-- Headers -->
+    <g transform="translate(24, 35)">
+      <text x="0" y="0" class="col-lbl">Variant Type</text>
+      <text x="200" y="0" class="col-lbl">Default State (H: 40px)</text>
+      <text x="420" y="0" class="col-lbl">Hover / Active State</text>
+      <text x="640" y="0" class="col-lbl">Compact / Small (H: 32px)</text>
+      <line x1="0" y1="12" x2="808" y2="12" stroke="#E2E8F0" stroke-width="1"/>
+    </g>
+
+    <!-- Row 1: Primary Red -->
+    <g transform="translate(24, 75)">
+      <text x="0" y="24" class="title" font-size="13">Primary Red</text>
+
+      <!-- Default -->
+      <rect x="200" y="0" width="170" height="40" rx="8" fill="#E11D48"/>
+      <g transform="translate(216, 12) scale(0.6666666666666666)" color="#FFFFFF"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="14" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/></g>
+      <text x="242" y="25" class="btn-text-white">IN PHIẾU GỬI</text>
+
+      <!-- Hover -->
+      <rect x="420" y="0" width="170" height="40" rx="8" fill="#BE123C"/>
+      <g transform="translate(436, 12) scale(0.6666666666666666)" color="#FFFFFF"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="14" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/></g>
+      <text x="462" y="25" class="btn-text-white">IN PHIẾU GỬI</text>
+
+      <!-- Small -->
+      <rect x="640" y="4" width="140" height="32" rx="6" fill="#E11D48"/>
+      <g transform="translate(652, 12) scale(0.5833333333333334)" color="#FFFFFF"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="14" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/></g>
+      <text x="674" y="25" class="btn-text-white" font-size="12">In phiếu</text>
+    </g>
+
+    <!-- Row 2: Outline Red -->
+    <g transform="translate(24, 135)">
+      <text x="0" y="24" class="title" font-size="13">Outline Red</text>
+
+      <!-- Default -->
+      <rect x="200" y="0" width="170" height="40" rx="8" fill="#FFFFFF" stroke="#E11D48" stroke-width="1.5"/>
+      <g transform="translate(216, 12) scale(0.6666666666666666)" color="#E11D48"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <text x="242" y="25" class="btn-text-red">IN LẠI TEM CŨ</text>
+
+      <!-- Hover -->
+      <rect x="420" y="0" width="170" height="40" rx="8" fill="#FFF1F2" stroke="#BE123C" stroke-width="1.5"/>
+      <g transform="translate(436, 12) scale(0.6666666666666666)" color="#BE123C"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <text x="242" y="25" class="btn-text-red" fill="#BE123C" transform="translate(220, 0)">IN LẠI TEM CŨ</text>
+
+      <!-- Small -->
+      <rect x="640" y="4" width="140" height="32" rx="6" fill="#FFFFFF" stroke="#E11D48" stroke-width="1.5"/>
+      <g transform="translate(652, 12) scale(0.5833333333333334)" color="#E11D48"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <text x="674" y="25" class="btn-text-red" font-size="12">In lại tem</text>
+    </g>
+
+    <!-- Row 3: Outline Slate -->
+    <g transform="translate(24, 195)">
+      <text x="0" y="24" class="title" font-size="13">Outline Slate</text>
+
+      <!-- Default -->
+      <rect x="200" y="0" width="170" height="40" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+      <g transform="translate(226, 12) scale(0.6666666666666666)" color="#334155"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15 9-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m9 9 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+      <text x="252" y="25" class="btn-text-slate">HỦY ĐƠN</text>
+
+      <!-- Hover -->
+      <rect x="420" y="0" width="170" height="40" rx="8" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
+      <g transform="translate(446, 12) scale(0.6666666666666666)" color="#0F172A"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15 9-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m9 9 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+      <text x="472" y="25" class="btn-text-slate" fill="#0F172A">HỦY ĐƠN</text>
+
+      <!-- Small (Edit Order) -->
+      <rect x="640" y="4" width="140" height="32" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+      <g transform="translate(652, 12) scale(0.5833333333333334)" color="#334155"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m15 5 4 4" fill="none" stroke="currentColor" stroke-width="2"/></g>
+      <text x="674" y="25" class="btn-text-slate" font-size="12">Sửa đơn</text>
+    </g>
+
+    <!-- Row 4: Top Toolbar Pills -->
+    <g transform="translate(24, 255)">
+      <text x="0" y="24" class="title" font-size="13">Spreadsheet Pills</text>
+
+      <!-- Pill 1: Excel Download -->
+      <g transform="translate(200, 4)">
+        <rect width="135" height="32" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+        <g transform="translate(12, 8) scale(0.625)" color="#0F172A"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7 10 12 15 17 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" x2="12" y1="15" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+        <text x="34" y="20" font-family="'Inter', sans-serif" font-size="12" font-weight="600" fill="#0F172A">Tải mẫu Excel</text>
+      </g>
+
+      <!-- Pill 2: Excel Import -->
+      <g transform="translate(345, 4)">
+        <rect width="135" height="32" rx="16" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+        <g transform="translate(12, 8) scale(0.625)" color="#1D4ED8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="17 8 12 3 7 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" x2="12" y1="3" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+        <text x="34" y="20" font-family="'Inter', sans-serif" font-size="12" font-weight="600" fill="#1D4ED8">Nhập file Excel</text>
+      </g>
+
+      <!-- Pill 3: Add Rows -->
+      <g transform="translate(490, 4)">
+        <rect width="115" height="32" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+        <g transform="translate(12, 8) scale(0.625)" color="#334155"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+        <text x="34" y="20" font-family="'Inter', sans-serif" font-size="12" font-weight="600" fill="#334155">Thêm dòng</text>
+      </g>
+
+      <!-- Pill 4: Check Data -->
+      <g transform="translate(615, 4)">
+        <rect width="145" height="32" rx="16" fill="#FEF2F2" stroke="#EF4444" stroke-width="1.5"/>
+        <g transform="translate(12, 8) scale(0.625)" color="#DC2626"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m9 15 2 2 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+        <text x="34" y="20" font-family="'Inter', sans-serif" font-size="12" font-weight="700" fill="#DC2626">Kiểm tra dữ liệu</text>
+      </g>
+    </g>
+  </g>
+</svg>

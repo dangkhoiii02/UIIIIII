@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 860" width="920" height="860">
+  <defs>
+    <style>
+      .title { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; fill: #0f172a; }
+      .sub { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; fill: #64748b; }
+      .swatch-lbl { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 600; fill: #0f172a; }
+      .swatch-hex { font-family: 'Inter', system-ui, sans-serif; font-size: 10px; fill: #64748b; }
+      .type-label { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 700; fill: #64748b; letter-spacing: 0.5px; text-transform: uppercase; }
+      .card { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; rx: 12px; }
+    </style>
+  </defs>
+
+  <rect width="920" height="860" fill="#f8fafc"/>
+
+  <!-- Header -->
+  <text x="32" y="44" class="title" font-size="22">SuperPlatform — Design Tokens &amp; Typography</text>
+  <text x="32" y="66" class="sub">Hệ thống màu ngữ nghĩa (Color Variables) và Phông chữ chuẩn Inter cho Figma UI Kit</text>
+
+  <!-- Section 1: Color Swatches -->
+  <g transform="translate(32, 90)">
+    <rect width="856" height="340" class="card"/>
+    <text x="24" y="32" class="title" font-size="15">Semantic Color Tokens (Bảng màu ngữ nghĩa)</text>
+    <text x="24" y="50" class="sub">Tạo Color Styles trong Figma theo cấu trúc: Category/Color-Name/Shade</text>
+
+    <!-- Row 1: Brand Red -->
+    <g transform="translate(24, 70)">
+      <rect x="0" y="0" width="120" height="50" rx="8" fill="#E11D48"/>
+      <text x="0" y="68" class="swatch-lbl">Brand Red</text>
+      <text x="0" y="82" class="swatch-hex">#E11D48 (Primary)</text>
+
+      <rect x="135" y="0" width="120" height="50" rx="8" fill="#BE123C"/>
+      <text x="135" y="68" class="swatch-lbl">Brand Red Hover</text>
+      <text x="135" y="82" class="swatch-hex">#BE123C (Hover/Dark)</text>
+
+      <rect x="270" y="0" width="120" height="50" rx="8" fill="#FEE2E2" stroke="#FECDD3"/>
+      <text x="270" y="68" class="swatch-lbl">Brand Red Soft</text>
+      <text x="270" y="82" class="swatch-hex">#FEE2E2 (Banner Bg)</text>
+
+      <rect x="405" y="0" width="120" height="50" rx="8" fill="#FFF1F2" stroke="#FECDD3"/>
+      <text x="405" y="68" class="swatch-lbl">Brand Red Tint</text>
+      <text x="405" y="82" class="swatch-hex">#FFF1F2 (Hover Outline)</text>
+    </g>
+
+    <!-- Row 2: Functional Colors -->
+    <g transform="translate(24, 175)">
+      <rect x="0" y="0" width="120" height="50" rx="8" fill="#2563EB"/>
+      <text x="0" y="68" class="swatch-lbl">Action Blue</text>
+      <text x="0" y="82" class="swatch-hex">#2563EB (Active/Link)</text>
+
+      <rect x="135" y="0" width="120" height="50" rx="8" fill="#16A34A"/>
+      <text x="135" y="68" class="swatch-lbl">Success Green</text>
+      <text x="135" y="82" class="swatch-hex">#16A34A (Delivered/Check)</text>
+
+      <rect x="270" y="0" width="120" height="50" rx="8" fill="#D97706"/>
+      <text x="270" y="68" class="swatch-lbl">Warning Amber</text>
+      <text x="270" y="82" class="swatch-hex">#D97706 (Delay/Alert)</text>
+
+      <rect x="405" y="0" width="120" height="50" rx="8" fill="#7C3AED"/>
+      <text x="405" y="68" class="swatch-lbl">Internal Purple</text>
+      <text x="405" y="82" class="swatch-hex">#7C3AED (Admin/Nội bộ)</text>
+
+      <rect x="540" y="0" width="120" height="50" rx="8" fill="#0F172A"/>
+      <text x="540" y="68" class="swatch-lbl">Neutral Dark 900</text>
+      <text x="540" y="82" class="swatch-hex">#0F172A (Headings)</text>
+
+      <rect x="675" y="0" width="120" height="50" rx="8" fill="#F1F5F9" stroke="#CBD5E1"/>
+      <text x="675" y="68" class="swatch-lbl">Surface Gray 100</text>
+      <text x="675" y="82" class="swatch-hex">#F1F5F9 (Pill/Border)</text>
+    </g>
+
+    <!-- Row 3: Tint Backgrounds -->
+    <g transform="translate(24, 280)">
+      <rect x="0" y="0" width="95" height="24" rx="4" fill="#EFF6FF" stroke="#BFDBFE"/>
+      <text x="8" y="16" font-family="'Inter', sans-serif" font-size="10" font-weight="600" fill="#2563EB">Shop Pill Bg</text>
+
+      <rect x="110" y="0" width="95" height="24" rx="4" fill="#F5F3FF" stroke="#DDD6FE"/>
+      <text x="8" y="16" font-family="'Inter', sans-serif" font-size="10" font-weight="600" fill="#7C3AED">Internal Pill Bg</text>
+
+      <rect x="220" y="0" width="95" height="24" rx="4" fill="#ECFDF5" stroke="#A7F3D0"/>
+      <text x="8" y="16" font-family="'Inter', sans-serif" font-size="10" font-weight="600" fill="#047857">Success Pill Bg</text>
+
+      <rect x="330" y="0" width="95" height="24" rx="4" fill="#FFFBEB" stroke="#FDE68A"/>
+      <text x="8" y="16" font-family="'Inter', sans-serif" font-size="10" font-weight="600" fill="#B45309">Warning Pill Bg</text>
+
+      <rect x="440" y="0" width="95" height="24" rx="4" fill="#FEF2F2" stroke="#FECDD3"/>
+      <text x="8" y="16" font-family="'Inter', sans-serif" font-size="10" font-weight="600" fill="#DC2626">Error Pill Bg</text>
+    </g>
+  </g>
+
+  <!-- Section 2: Typography Scale -->
+  <g transform="translate(32, 450)">
+    <rect width="856" height="370" class="card"/>
+    <text x="24" y="32" class="title" font-size="15">Typography System (Hệ thống chữ chuẩn Inter)</text>
+    <text x="24" y="50" class="sub">Tạo Text Styles trong Figma: Font Inter, Line Height chuẩn, Letter-spacing tối ưu</text>
+
+    <!-- Table Header -->
+    <g transform="translate(24, 75)">
+      <text x="0" y="0" class="type-label">Style Name</text>
+      <text x="180" y="0" class="type-label">Size / Line Height</text>
+      <text x="320" y="0" class="type-label">Weight</text>
+      <text x="440" y="0" class="type-label">Sample Preview</text>
+      <line x1="0" y1="12" x2="808" y2="12" stroke="#E2E8F0" stroke-width="1"/>
+    </g>
+
+    <!-- Type Rows -->
+    <g transform="translate(24, 115)">
+      <text x="0" y="0" font-family="'Inter', sans-serif" font-size="13" font-weight="600" fill="#0F172A">Heading/H1 - Page</text>
+      <text x="180" y="0" font-family="'Inter', sans-serif" font-size="12" fill="#64748B">24px / 32px (-0.3px)</text>
+      <text x="320" y="0" font-family="'Inter', sans-serif" font-size="12" font-weight="600" fill="#0F172A">Bold (700)</text>
+      <text x="440" y="0" font-family="'Inter', sans-serif" font-size="24" font-weight="700" fill="#0F172A">Chi tiết đơn hàng SPF-HN-00291</text>
+
+      <line x1="0" y1="20" x2="808" y2="20" stroke="#F1F5F9" stroke-width="1"/>
+    </g>
+
+    <g transform="translate(24, 160)">
+      <text x="0" y="0" font-family="'Inter', sans-serif" font-size="13" font-weight="600" fill="#0F172A">Heading/H2 - Section</text>
+      <text x="180" y="0" font-family="'Inter', sans-serif" font-size="12" fill="#64748B">18px / 26px (-0.2px)</text>
+      <text x="320" y="0" font-family="'Inter', sans-serif" font-size="12" font-weight="600" fill="#0F172A">SemiBold (600)</text>
+      <text x="440" y="0" font-family="'Inter', sans-serif" font-size="18" font-weight="600" fill="#0F172A">Thông tin vận chuyển &amp; Bảng tính 3 cấp</text>
+
+      <line x1="0" y1="20" x2="808" y2="20" stroke="#F1F5F9" stroke-width="1"/>
+    </g>
+
+    <g transform="translate(24, 205)">
+      <text x="0" y="0" font-family="'Inter', sans-serif" font-size="13" font-weight="600" fill="#0F172A">Title/Stage - Cardlet</text>
+      <text x="180" y="0" font-family="'Inter', sans-serif" font-size="12" fill="#64748B">13.5px / 18px (0px)</text>
+      <text x="320" y="0" font-family="'Inter', sans-serif" font-size="12" font-weight="600" fill="#0F172A">Bold (700)</text>
+      <text x="440" y="0" font-family="'Inter', sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Chặng 1: Lấy hàng (SuperShip)</text>
+
+      <line x1="0" y1="20" x2="808" y2="20" stroke="#F1F5F9" stroke-width="1"/>
+    </g>
+
+    <g transform="translate(24, 250)">
+      <text x="0" y="0" font-family="'Inter', sans-serif" font-size="13" font-weight="600" fill="#0F172A">Body/Default</text>
+      <text x="180" y="0" font-family="'Inter', sans-serif" font-size="12" fill="#64748B">14px / 20px (0px)</text>
+      <text x="320" y="0" font-family="'Inter', sans-serif" font-size="12" font-weight="500" fill="#0F172A">Regular / Medium</text>
+      <text x="440" y="0" font-family="'Inter', sans-serif" font-size="14" fill="#334155">231/15 Dương Bá Trạc, Phường 01, Quận 8, TP.HCM</text>
+
+      <line x1="0" y1="20" x2="808" y2="20" stroke="#F1F5F9" stroke-width="1"/>
+    </g>
+
+    <g transform="translate(24, 295)">
+      <text x="0" y="0" font-family="'Inter', sans-serif" font-size="13" font-weight="600" fill="#0F172A">Badge / Pill Status</text>
+      <text x="180" y="0" font-family="'Inter', sans-serif" font-size="12" fill="#64748B">11px / 14px (+0.2px)</text>
+      <text x="320" y="0" font-family="'Inter', sans-serif" font-size="12" font-weight="600" fill="#0F172A">SemiBold (600)</text>
+      <text x="440" y="0" font-family="'Inter', sans-serif" font-size="11" font-weight="600" fill="#047857">ĐÃ BÀN GIAO NHÀ VẬN CHUYỂN KHÁC</text>
+
+      <line x1="0" y1="20" x2="808" y2="20" stroke="#F1F5F9" stroke-width="1"/>
+    </g>
+
+    <g transform="translate(24, 340)">
+      <text x="0" y="0" font-family="'Inter', sans-serif" font-size="13" font-weight="600" fill="#0F172A">Code / Raw Monospace</text>
+      <text x="180" y="0" font-family="'Inter', sans-serif" font-size="12" fill="#64748B">11.5px / 15px (0px)</text>
+      <text x="320" y="0" font-family="monospace" font-size="12" fill="#0F172A">Mono 500</text>
+      <text x="440" y="0" font-family="monospace" font-size="11.5" font-weight="600" fill="#6D28D9">SPF_DELIVERY_FAIL_CARRIER_NOT_REACHABLE</text>
+    </g>
+  </g>
+</svg>

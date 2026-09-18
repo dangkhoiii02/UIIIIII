@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 export interface SelectOption {
@@ -8,7 +8,7 @@ export interface SelectOption {
 }
 
 export interface CustomSelectProps {
-  label?: string;
+  label?: ReactNode;
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];

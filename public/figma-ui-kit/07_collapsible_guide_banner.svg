@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 340" width="920" height="340">
+  <defs>
+    <style>
+      .title { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; fill: #dc2626; }
+      .sub { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; fill: #64748b; }
+      .step-bold { font-family: 'Inter', system-ui, sans-serif; font-size: 13px; font-weight: 700; fill: #0f172a; }
+      .step-body { font-family: 'Inter', system-ui, sans-serif; font-size: 13px; fill: #334155; }
+      .guide-card { fill: #ffffff; stroke: #fee2e2; stroke-width: 1.5; rx: 14px; }
+    </style>
+  </defs>
+
+  <rect width="920" height="340" fill="#f8fafc"/>
+
+  <!-- Top Banner (Positioned above table) -->
+  <g transform="translate(32, 25)">
+    <rect width="856" height="280" class="guide-card"/>
+
+    <!-- Header Row: Title & Close Button -->
+    <g transform="translate(24, 30)">
+      <text x="0" y="0" class="title" font-size="16">Hướng Dẫn Sử Dụng</text>
+      <!-- Close Button Circle -->
+      <g transform="translate(780, -14)">
+        <circle cx="12" cy="12" r="14" fill="#F1F5F9"/>
+        <g transform="translate(4, 4) scale(0.6666666666666666)" color="#64748B"><path d="M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m6 6 12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+      </g>
+    </g>
+
+    <!-- Body Steps -->
+    <g transform="translate(24, 70)">
+      <!-- Step 1 -->
+      <g transform="translate(0, 0)">
+        <text x="0" y="0" class="step-bold">Bước 1: <tspan class="step-body">Nhập vào các thông tin bắt buộc: </tspan><tspan font-weight="700">Tên Người Nhận, SĐT Người Nhận, Địa Chỉ Chi Tiết, Khối Lượng (gram), COD.</tspan></text>
+        <text x="0" y="20" font-family="'Inter', sans-serif" font-size="12" fill="#64748B">Tick chọn ô "Đổi Lấy Hàng Về" (nếu có nhu cầu) và ghi chú giao hàng. Các trường có dấu [*] là bắt buộc.</text>
+      </g>
+
+      <!-- Step 2 -->
+      <g transform="translate(0, 56)">
+        <text x="0" y="0" class="step-bold">Bước 2: <tspan class="step-body">Tại cột Tỉnh/Thành Phố, Phường/Xã </tspan><tspan font-weight="700" fill="#E11D48">SuperAI</tspan><tspan class="step-body"> sẽ tự động gợi ý tuyến chuẩn hóa khi điền Địa Chỉ Chi Tiết.</tspan></text>
+        <rect x="0" y="12" width="808" height="42" rx="6" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1"/>
+        <text x="12" y="28" font-family="'Inter', sans-serif" font-size="11.5" font-weight="600" fill="#B45309">Lưu ý: Các ô được tô nền xanh dương nhạt là các ô chuyển đổi từ Địa Chỉ 3 Cấp sang 2 Cấp, vui lòng kiểm tra lại.</text>
+      </g>
+
+      <!-- Step 3 -->
+      <g transform="translate(0, 140)">
+        <text x="0" y="0" class="step-bold">Bước 3: <tspan class="step-body">Bấm </tspan><tspan font-weight="700" fill="#DC2626">✓ Kiểm Tra Dữ Liệu</tspan><tspan class="step-body"> để hệ thống xác thực dữ liệu hợp lệ (tô màu xanh lá). Sau đó bấm </tspan><tspan font-weight="700" fill="#16A34A">Tạo Nhiều Đơn Hàng</tspan><tspan class="step-body"> để tạo đơn.</tspan></text>
+      </g>
+    </g>
+  </g>
+</svg>

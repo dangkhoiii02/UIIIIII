@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
-import { RotateCcw, FileText, Printer, ChevronDown } from 'lucide-react';
+import { RotateCcw, FileDown, Printer, ArrowLeft } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { AsyncStatePanel } from '@/shared/ui/AsyncStatePanel';
 import { useToast } from '@/shared/ui/toast-context';
 import { downloadCsv } from '@/shared/lib/format';
 import { OrderFilters } from '../components/OrderFilters';
@@ -10,30 +11,67 @@ import { OrderDialogs, type OrderDialogState } from '../components/OrderDialogs'
 import { useOrders } from '../model/orders-context';
 import { emptyFilters, type Order } from '../model/types';
 import { filterOrders } from '../model/order';
+import { getSpfLifecyclePhase, isSpfFailureStatus } from '../model/spf-status-catalog';
 
-const tabs = [
-  ['Tất cả', ''],
-  ['Chưa lấy hàng', 'Chờ Lấy Hàng'],
-  ['Đã lấy hàng - Đang giao hàng', 'Đang giao hàng'],
-  ['Hoãn giao hàng', 'Hoãn giao hàng'],
-  ['Đã giao hàng', 'Đã giao hàng'],
-  ['Đang chuyển hoàn', 'Đang chuyển hoàn'],
-  ['Đã trả hàng', 'Đã trả hàng'],
-  ['Đã hủy', 'Đã hủy'],
+type QuickFilterId =
+  | 'all'
+  | 'unpicked'
+  | 'shipping'
+  | 'delivery_failed'
+  | 'delivered'
+  | 'returning'
+  | 'returned'
+  | 'cancelled'
+  | 'needs_response'
+  | 'needs_processing'
+  | 'incident'
+  | 'return_cancel'
+  | 'sync_error';
+
+const SHOP_TABS: Array<[string, QuickFilterId]> = [
+  ['Tất cả', 'all'],
+  ['Chưa lấy hàng', 'unpicked'],
+  ['Đang vận chuyển', 'shipping'],
+  ['Giao thất bại', 'delivery_failed'],
+  ['Đã giao hàng', 'delivered'],
+  ['Đang hoàn', 'returning'],
+  ['Đã trả hàng', 'returned'],
+  ['Đã hủy', 'cancelled'],
+  ['Cần phản hồi', 'needs_response'],
 ];
 
-const PRINT_TEMPLATES = [
-  { id: 'A7', label: 'A7 (75 mm x 100 mm)' },
-  { id: 'A5', label: 'A5 (148 mm x 210 mm)' },
-  { id: 'K46', label: 'K46 (4 in x 6 in)' },
-  { id: 'K50', label: 'K50 (50 mm x 50 mm)' },
-  { id: 'K75', label: 'K75 (75 mm x 50 mm)' },
-  { id: 'K80', label: 'K80 (80 mm x 80 mm)' },
-  { id: 'SPE', label: 'SPE (105 mm x 35 mm)' },
-  { id: 'T2', label: 'T2 (210 mm x 280 mm)' },
-  { id: 'S8', label: 'S8 (9 cm x 6 cm)' },
-  { id: 'S9', label: 'S9 (9 cm x 6 cm)' },
+const INTERNAL_TABS: Array<[string, QuickFilterId]> = [
+  ['Tất cả', 'all'],
+  ['Chờ xử lý', 'needs_processing'],
+  ['Đang vận chuyển', 'shipping'],
+  ['Có sự cố', 'incident'],
+  ['Hoàn - Hủy', 'return_cancel'],
+  ['Đồng bộ lỗi', 'sync_error'],
 ];
+
+function matchesQuickFilter(order: Order, filter: QuickFilterId): boolean {
+  const phase = getSpfLifecyclePhase(order.spfCode);
+  if (filter === 'all') return true;
+  if (filter === 'unpicked')
+    return ['creating', 'pickup'].includes(phase) && order.spfCode < 'SPF-0501';
+  if (filter === 'shipping') return ['handover', 'delivery'].includes(phase);
+  if (filter === 'delivery_failed') return order.spfCode === 'SPF-0802';
+  if (filter === 'delivered') return order.spfCode === 'SPF-0901';
+  if (filter === 'returning') return phase === 'return' || order.spfCode === 'SPF-0902';
+  if (filter === 'returned') return phase === 'returned';
+  if (filter === 'cancelled') return order.spfCode === 'SPF-0201';
+  if (filter === 'needs_response')
+    return order.supportStatus === 'PENDING' || order.supportStatus === 'PROCESSING';
+  if (filter === 'needs_processing')
+    return (
+      Boolean(order.supportStatus) || Boolean(order.incidentType) || order.syncStatus === 'FAILED'
+    );
+  if (filter === 'incident')
+    return Boolean(order.incidentType) || isSpfFailureStatus(order.spfCode);
+  if (filter === 'return_cancel')
+    return phase === 'return' || phase === 'returned' || phase === 'cancelled';
+  return order.syncStatus === 'FAILED';
+}
 
 export default function OrdersPage() {
   const { orders, resetDb } = useOrders();
@@ -44,18 +82,58 @@ export default function OrdersPage() {
   const isInternal = outletCtx?.isInternal ?? false;
 
   const [filters, setFilters] = useState({ ...emptyFilters });
-  const [status, setStatus] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilterId>('all');
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<OrderDialogState>();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [printType, setPrintType] = useState('K46');
-  const [showPrintPopover, setShowPrintPopover] = useState(false);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+  const hasMovedRef = useRef(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!tabsRef.current) return;
+    isDraggingRef.current = true;
+    hasMovedRef.current = false;
+    startXRef.current = e.pageX - tabsRef.current.offsetLeft;
+    scrollLeftRef.current = tabsRef.current.scrollLeft;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current || !tabsRef.current) return;
+    const x = e.pageX - tabsRef.current.offsetLeft;
+    const walk = x - startXRef.current;
+    if (Math.abs(walk) > 3) {
+      hasMovedRef.current = true;
+    }
+    tabsRef.current.scrollLeft = scrollLeftRef.current - walk;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    isDraggingRef.current = false;
+  };
 
   const query = params.get('q') ?? '';
+  const tabs = isInternal ? INTERNAL_TABS : SHOP_TABS;
   const list = useMemo(
-    () => filterOrders(orders, { ...filters, query, status: status || filters.status }),
-    [orders, filters, query, status],
+    () =>
+      filterOrders(orders, { ...filters, query: query || filters.query }).filter((order) =>
+        matchesQuickFilter(order, quickFilter),
+      ),
+    [orders, filters, query, quickFilter],
   );
+
+  useEffect(() => {
+    setQuickFilter('all');
+    setSelected([]);
+  }, [isInternal]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsLoading(false), 320);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const handleAction = (action: OrderAction, order: Order) => {
     if (action === 'detail') navigate(`/orders/${encodeURIComponent(order.id)}`);
@@ -69,101 +147,107 @@ export default function OrdersPage() {
 
   return (
     <>
-      <div className="title-row">
-        <h1>
-          Đơn hàng <span className="badge-blue">{orders.length}</span>
-        </h1>
-        <div className="actions">
+      <div className="orders-header-row">
+        <div className="orders-title-wrap">
+          <button
+            type="button"
+            className="btn-round-back"
+            onClick={() => navigate(-1)}
+            aria-label="Quay lại"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <h1 className="orders-page-title">
+            Đơn Hàng <span className="orders-count-text">({orders.length})</span>
+          </h1>
+        </div>
+        <div className="orders-header-aux">
           <Button
             className="btn-soft-grey"
             onClick={() => {
-              if (window.confirm('Bạn có chắc muốn đặt lại dữ liệu DB mẫu? Tất cả đơn hàng tự tạo sẽ được khởi tạo lại.')) {
+              if (
+                window.confirm(
+                  'Bạn có chắc muốn đặt lại dữ liệu DB mẫu? Tất cả đơn hàng tự tạo sẽ được khởi tạo lại.',
+                )
+              ) {
                 resetDb();
                 notify('Đã đặt lại dữ liệu DB mẫu thành công!');
               }
             }}
           >
-            <RotateCcw size={15} />
+            <RotateCcw size={14} />
             <span>Reset DB</span>
           </Button>
+        </div>
+      </div>
 
-          <Button
-            className={hasSelected ? 'btn-soft-grey btn-excel-active' : 'btn-soft-grey'}
-            onClick={() =>
+      <div className="orders-tabs-bar">
+        <div
+          ref={tabsRef}
+          className="status-tabs-list"
+          role="group"
+          aria-label="Trạng thái đơn hàng"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUpOrLeave}
+          onMouseLeave={handleMouseUpOrLeave}
+        >
+          {tabs.map(([title, value]) => {
+            const count = orders.filter((order) => matchesQuickFilter(order, value)).length;
+            return (
+              <button
+                key={title}
+                className={'status-tab-pill ' + (quickFilter === value ? 'active' : '')}
+                aria-pressed={quickFilter === value}
+                onClick={() => {
+                  if (hasMovedRef.current) return;
+                  setQuickFilter(value);
+                  setSelected([]);
+                }}
+              >
+                {title} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="orders-batch-actions">
+          <button
+            type="button"
+            className={`btn-order-action ${hasSelected ? 'btn-excel-active' : ''}`}
+            onClick={() => {
+              if (!hasSelected) {
+                notify('Vui lòng chọn ít nhất 1 đơn hàng để xuất Excel.');
+                return;
+              }
               downloadCsv('superplatform-orders.csv', [
                 ['Mã đơn', 'Người nhận', 'Điện thoại', 'Sản phẩm', 'Thu hộ', 'Trạng thái'],
                 ...list
-                  .filter((o) => (!hasSelected || selected.includes(o.id)))
+                  .filter((o) => selected.includes(o.id))
                   .map((o) => [o.id, o.name, o.phone, o.product, o.cod, o.status]),
-              ])
-            }
-          >
-            <FileText size={15} />
-            <span>Xuất EXCEL{hasSelected ? ` [${selected.length}]` : ''}</span>
-          </Button>
-
-          <div className="print-dropdown-wrapper">
-            <div className="btn-split-group">
-              <button
-                type="button"
-                className={`btn-split-main ${hasSelected ? 'btn-soft-grey btn-print-active' : 'btn-soft-grey'}`}
-                onClick={() => {
-                  const items = list.filter((o) => selected.includes(o.id));
-                  if (!items.length) notify('Vui lòng chọn đơn cần in.');
-                  else setDialog({ type: 'print', orders: items });
-                }}
-              >
-                <Printer size={15} />
-                <span>
-                  In tem ({printType}){hasSelected ? ` [${selected.length}]` : ''}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className={`btn-split-chevron ${hasSelected ? 'btn-soft-grey btn-print-active' : 'btn-soft-grey'}`}
-                onClick={() => setShowPrintPopover(!showPrintPopover)}
-                aria-label="Chọn loại tem in"
-              >
-                <ChevronDown size={14} />
-              </button>
-            </div>
-
-            {showPrintPopover && (
-              <div className="print-template-popover">
-                {PRINT_TEMPLATES.map((tmpl) => (
-                  <div
-                    key={tmpl.id}
-                    className={`print-template-item ${printType === tmpl.id ? 'selected' : ''}`}
-                    onClick={() => {
-                      setPrintType(tmpl.id);
-                      setShowPrintPopover(false);
-                      notify(`Đã chọn loại tem: ${tmpl.label}`);
-                    }}
-                  >
-                    <span className={`radio-dot-icon ${printType === tmpl.id ? 'checked' : ''}`} />
-                    <span>{tmpl.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="tabs" role="group" aria-label="Trạng thái đơn hàng">
-        {tabs.map(([title, value]) => (
-          <button
-            key={title}
-            className={'tab ' + (status === value ? 'active' : '')}
-            aria-pressed={status === value}
-            onClick={() => {
-              setStatus(value!);
-              setSelected([]);
+              ]);
             }}
           >
-            {title} ({value ? orders.filter((o) => o.status === value).length : orders.length})
+            <FileDown size={17} />
+            <span>XUẤT EXCEL{hasSelected ? ` (${selected.length})` : ''}</span>
           </button>
-        ))}
+
+          <button
+            type="button"
+            className={`btn-order-action ${hasSelected ? 'btn-print-active' : ''}`}
+            onClick={() => {
+              const items = list.filter((o) => selected.includes(o.id));
+              if (!items.length) {
+                notify('Vui lòng chọn ít nhất 1 đơn hàng để in tem.');
+              } else {
+                setDialog({ type: 'print', orders: items });
+              }
+            }}
+          >
+            <Printer size={17} />
+            <span>IN TEM{hasSelected ? ` (${selected.length})` : ''}</span>
+          </button>
+        </div>
       </div>
       {query && (
         <p>
@@ -178,14 +262,33 @@ export default function OrdersPage() {
           setSelected([]);
         }}
       />
-      <OrderTable
-        orders={list}
-        selected={selected}
-        onSelect={setSelected}
-        onAction={handleAction}
-      />
+      {isLoading ? (
+        <AsyncStatePanel state="loading" />
+      ) : list.length ? (
+        <OrderTable
+          orders={list}
+          selected={selected}
+          onSelect={setSelected}
+          onAction={handleAction}
+          isInternal={isInternal}
+        />
+      ) : (
+        <AsyncStatePanel
+          state="empty"
+          title={query ? 'Không tìm thấy Order phù hợp' : undefined}
+          description={
+            query
+              ? `Không có kết quả cho “${query}”. Hãy kiểm tra lại mã đơn, mã vận đơn hoặc số điện thoại.`
+              : 'Không có Order phù hợp với bộ lọc và trạng thái đang chọn.'
+          }
+          actionLabel="Xóa bộ lọc"
+          onAction={() => {
+            setFilters({ ...emptyFilters });
+            setQuickFilter('all');
+          }}
+        />
+      )}
       {dialog && <OrderDialogs state={dialog} onClose={() => setDialog(undefined)} />}
     </>
   );
 }
-

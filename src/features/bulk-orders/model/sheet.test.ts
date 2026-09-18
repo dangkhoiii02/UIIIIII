@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { decodeDraft, emptySheet, pasteCells, rowToOrder, validateRow } from './sheet';
+import {
+  decodeDraft,
+  emptySheet,
+  generateTemplateCsv,
+  parseImportedSpreadsheet,
+  pasteCells,
+  rowToOrder,
+  validateRow,
+} from './sheet';
 describe('bulk order sheet', () => {
   it('maps pasted 2-level rows into orders', () => {
     const rows = pasteCells(
@@ -24,5 +32,19 @@ describe('bulk order sheet', () => {
     expect(source[24]).toEqual({});
     expect(next).toHaveLength(25);
     expect(next[24]?.privateId).toBe('A');
+  });
+  it('generates CSV template and parses imported spreadsheets correctly', () => {
+    const csv2 = generateTemplateCsv(2);
+    expect(csv2).toContain('Mã Đơn Của Shop');
+    expect(csv2).toContain('Phường/Xã/Thị Trấn');
+    expect(csv2).not.toContain('Quận/Huyện/Thị Xã');
+
+    const csv3 = generateTemplateCsv(3);
+    expect(csv3).toContain('Quận/Huyện/Thị Xã');
+
+    const parsed = parseImportedSpreadsheet(csv2, 2);
+    expect(parsed.length).toBe(2);
+    expect(parsed[0]?.name).toBe('Nguyễn Văn An');
+    expect(parsed[0]?.phone).toBe('0901234567');
   });
 });

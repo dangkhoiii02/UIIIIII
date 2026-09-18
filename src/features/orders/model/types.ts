@@ -1,11 +1,6 @@
-export type OrderStatus =
-  | 'Chờ Lấy Hàng'
-  | 'Đang giao hàng'
-  | 'Hoãn giao hàng'
-  | 'Đã giao hàng'
-  | 'Đang chuyển hoàn'
-  | 'Đã trả hàng'
-  | 'Đã hủy';
+import type { SpfStatusCode, SpfStatusName } from './spf-status-catalog';
+
+export type OrderStatus = SpfStatusName;
 
 export type ActorRole = 'shop' | 'cskh' | 'ops' | 'sales' | 'finance' | 'admin';
 
@@ -26,18 +21,121 @@ export interface OrderInput {
   payer: 'sender' | 'recipient';
   inspection: 'view' | 'try' | 'none';
   returnGoods: boolean;
+  /** Ứng dụng/mô hình khách hàng dùng khi tạo đơn. */
+  customerApplication?: 'SUPERSHIP' | 'SUPERAI';
+  customerModel?: 'LOCAL_LEGACY' | 'LOCAL_NEW' | 'NATIONAL' | 'SUPERAI';
+  fulfillmentPlan?: 'LOCAL_SUPERSHIP' | 'LOCAL_PARTNER' | 'DIRECT_CARRIER';
+  selectedCarrier?: string;
+  selectedService?: string;
+  carrierSelectionMode?: string;
+  pickupAddressOverride?: string;
 }
 
-import type { SpfStatusCode } from './spf-status-catalog';
 export type { SpfStatusCode } from './spf-status-catalog';
+
+export interface CarrierWebhookEvent {
+  id: string;
+  receivedAt: string;
+  eventAt: string;
+  statusCode: string;
+  statusText: string;
+  mappedSpfCode: SpfStatusCode;
+  mappedSpfStatus: SpfStatusName;
+  processingStatus: 'processed' | 'duplicate' | 'failed';
+  requestId: string;
+  location?: string;
+  note?: string;
+  payload?: string;
+}
+
+export interface PrintHistoryEntry {
+  id: string;
+  printedAt: string;
+  printedBy: string;
+  actorType: 'shop' | 'internal';
+  waybill: string;
+  templateType: string;
+  status: 'Thành công' | 'Thất bại';
+}
+
+export interface AccessAuditEntry {
+  id: string;
+  viewedAt: string;
+  viewedBy: string;
+  field: 'shipper_delivery_phone';
+  reason: string;
+}
+
+export interface DeliveryProof {
+  id: string;
+  imageUrl: string;
+  capturedAt: string;
+  capturedBy: string;
+  note: string;
+}
+
+export interface GoodsImage {
+  id: string;
+  imageUrl: string;
+  fileName: string;
+  uploadedAt: string;
+  uploadedBy: string;
+}
+
+export interface CarrierChangeRecord {
+  id: string;
+  changedAt: string;
+  changedBy: string;
+  fromCarrier: string;
+  toCarrier: string;
+  reason: string;
+}
+
+export type OrderOperation =
+  | { type: 'request-redelivery' }
+  | { type: 'request-return'; reason: string }
+  | { type: 'confirm-return' }
+  | { type: 'change-carrier'; carrier: string; reason: string; changedBy: string }
+  | { type: 'add-goods-images'; images: GoodsImage[] };
+
+export interface InstantDeliveryTracking {
+  state:
+    | 'CREATED'
+    | 'DRIVER_ASSIGNED'
+    | 'DRIVER_TO_PICKUP'
+    | 'PICKED_UP'
+    | 'IN_DELIVERY'
+    | 'ARRIVING'
+    | 'DELIVERED';
+  statusLabel: string;
+  currentAddress: string;
+  updatedAt: string;
+  progressPercent: number;
+  pickupAddress: string;
+  deliveryAddress: string;
+  remainingDistanceKm?: number;
+  etaMinutes?: number;
+  estimatedArrivalAt?: string;
+  latitude?: number;
+  longitude?: number;
+  locationAccuracyMeters?: number;
+  vehicleType?: string;
+  vehiclePlate?: string;
+}
 
 export interface ShippingStageItem {
   key: 'pickup' | 'delivery' | 'return' | 'refund';
-  title: string;
+  title: string; // 'Chuyển' | 'Giao' | 'Hoàn'
   carrier: string;
   tracking: string;
   isSuperShip?: boolean;
   status?: 'completed' | 'active' | 'pending';
+  /** Trạng thái riêng do NVC của chặng trả về, không thay thế trạng thái SPF của Order. */
+  carrierStatusText?: string;
+  carrierStatusCode?: string;
+  carrierUpdatedAt?: string;
+  /** Nhật ký webhook gốc chỉ hiển thị cho người dùng nội bộ theo đúng chặng/NVC. */
+  webhookEvents?: CarrierWebhookEvent[];
 }
 
 export interface ShippingRoutingInfo {
@@ -58,11 +156,61 @@ export interface Order extends OrderInput {
   id: string;
   createdAt: string;
   status: OrderStatus;
-  spfCode?: SpfStatusCode;
+  /** Mã trạng thái chuẩn SuperPlatform; bắt buộc để không suy diễn từ nhãn NVC. */
+  spfCode: SpfStatusCode;
   printed: boolean;
+  printHistory?: PrintHistoryEntry[];
   batchId: string;
   reconciliationId: string;
   shippingInfo?: ShippingRoutingInfo;
+  updatedAt?: string;
+  clientCode?: string;
+  shopId?: string;
+  shopName?: string;
+  shopPhone?: string;
+  sourceChannel?: string;
+  serviceType?: string;
+  dispatchMethod?: 'pickup' | 'dropoff';
+  warehouseId?: string;
+  addressFormat?: '2-level' | '3-level';
+  senderName?: string;
+  senderPhone?: string;
+  senderAddress?: string;
+  /** Dữ liệu chuyển ngoài do nghiệp vụ ghi nhận; không suy diễn từ số lượng NVC. */
+  isExternalRouted?: boolean;
+  shipperPickupPhone?: string;
+  shipperDeliveryPhone?: string;
+  shipperDeliveryName?: string;
+  shipperDeliveryCode?: string;
+  shipperReturnPhone?: string;
+  shipperFinalReturnPhone?: string;
+  pickupAttempts?: number;
+  deliveryAttempts?: number;
+  finalReturnAttempts?: number;
+  cancelRequestedAt?: string;
+  carrierCancelStatus?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REJECTED' | 'UNKNOWN';
+  hasStatusMismatch?: boolean;
+  accessAudit?: AccessAuditEntry[];
+  deliveryProofs?: DeliveryProof[];
+  goodsImages?: GoodsImage[];
+  carrierChangeHistory?: CarrierChangeRecord[];
+  /** Vị trí gần nhất của tài xế cho đơn hỏa tốc nội thành. */
+  instantTracking?: InstantDeliveryTracking;
+  deliveryResult?: 'NONE' | 'PARTIAL' | 'FULL';
+  businessType?: 'STANDARD' | 'PARTIAL' | 'EXCHANGE' | 'RETURN';
+  returnReason?: string;
+  supportStatus?: string;
+  codPaymentStatus?: string;
+  priceAccountType?: string;
+  codChanged?: boolean;
+  incidentType?: string;
+  claimStatus?: string;
+  compensationStatus?: string;
+  syncStatus?: string;
+  pickupAt?: string;
+  deliveryAt?: string;
+  returnConfirmedAt?: string;
+  returnedAt?: string;
 }
 
 export interface OrderFilters {
@@ -77,6 +225,14 @@ export interface OrderFilters {
   reconciliationId: string;
   shopId: string;
   sourceChannel: string;
+  serviceType: string;
+  dispatchMethod: string;
+  deliveryResult: string;
+  businessType: string;
+  timeField: string;
+  supportStatus: string;
+  codPaymentStatus: string;
+  returnReason: string;
   recipientName: string;
   warehouseId: string;
   senderAddress: string;
@@ -94,8 +250,12 @@ export interface OrderFilters {
   statusAgeHours: string;
   carrierStatusPickup: string;
   carrierStatusDelivery: string;
+  carrierStatusReturn: string;
+  carrierStatusFinalReturn: string;
   shipperPickupPhone: string;
   shipperDeliveryPhone: string;
+  shipperReturnPhone: string;
+  shipperFinalReturnPhone: string;
   picked: boolean;
   unpicked: boolean;
   pickupFailed: boolean;
@@ -146,6 +306,14 @@ export const emptyFilters: OrderFilters = {
   reconciliationId: '',
   shopId: '',
   sourceChannel: '',
+  serviceType: '',
+  dispatchMethod: '',
+  deliveryResult: '',
+  businessType: '',
+  timeField: 'createdAt',
+  supportStatus: '',
+  codPaymentStatus: '',
+  returnReason: '',
   recipientName: '',
   warehouseId: '',
   senderAddress: '',
@@ -163,8 +331,12 @@ export const emptyFilters: OrderFilters = {
   statusAgeHours: '',
   carrierStatusPickup: '',
   carrierStatusDelivery: '',
+  carrierStatusReturn: '',
+  carrierStatusFinalReturn: '',
   shipperPickupPhone: '',
   shipperDeliveryPhone: '',
+  shipperReturnPhone: '',
+  shipperFinalReturnPhone: '',
   picked: false,
   unpicked: false,
   pickupFailed: false,

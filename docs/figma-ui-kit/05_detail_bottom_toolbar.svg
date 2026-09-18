@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 200" width="1080" height="200">
+  <defs>
+    <style>
+      .title { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; fill: #0f172a; }
+      .sub { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; fill: #64748b; }
+      .btn-white { font-family: 'Inter', system-ui, sans-serif; font-size: 12.5px; font-weight: 700; fill: #ffffff; letter-spacing: 0.3px; }
+      .btn-red { font-family: 'Inter', system-ui, sans-serif; font-size: 12.5px; font-weight: 700; fill: #e11d48; letter-spacing: 0.3px; }
+      .btn-slate { font-family: 'Inter', system-ui, sans-serif; font-size: 12.5px; font-weight: 700; fill: #334155; letter-spacing: 0.3px; }
+      .note-badge { font-family: 'Inter', system-ui, sans-serif; font-size: 10px; font-weight: 700; fill: #2563eb; }
+    </style>
+  </defs>
+
+  <rect width="1080" height="200" fill="#f8fafc"/>
+
+  <text x="32" y="36" class="title" font-size="18">Order Detail — Fixed Docked Bottom Toolbar (4 Equal-Width Action Buttons)</text>
+  <text x="32" y="56" class="sub">Thanh điều hướng cố định mép dưới màn hình, 4 nút chia đều bằng nhau (flex: 1), căn lề chạm khít mép Sidebar 220px</text>
+
+  <!-- Pinned Toolbar Component -->
+  <g transform="translate(32, 80)">
+    <!-- Backdrop bar -->
+    <rect width="1016" height="68" rx="10" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+
+    <!-- 4 Buttons (Each width 232px, gap 16px) -->
+    <!-- Button 1: IN PHIẾU GỬI -->
+    <g transform="translate(16, 14)">
+      <rect width="232" height="40" rx="8" fill="#E11D48"/>
+      <g transform="translate(44, 12) scale(0.6666666666666666)" color="#FFFFFF"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="14" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/></g>
+      <text x="70" y="25" class="btn-white">IN PHIẾU GỬI</text>
+    </g>
+
+    <!-- Button 2: IN LẠI TEM CŨ -->
+    <g transform="translate(264, 14)">
+      <rect width="232" height="40" rx="8" fill="#FFFFFF" stroke="#E11D48" stroke-width="1.5"/>
+      <g transform="translate(44, 12) scale(0.6666666666666666)" color="#E11D48"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <text x="70" y="25" class="btn-red">IN LẠI TEM CŨ</text>
+    </g>
+
+    <!-- Button 3: CHỈNH SỬA ĐƠN -->
+    <g transform="translate(512, 14)">
+      <rect width="232" height="40" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+      <g transform="translate(40, 12) scale(0.6666666666666666)" color="#334155"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m15 5 4 4" fill="none" stroke="currentColor" stroke-width="2"/></g>
+      <text x="66" y="25" class="btn-slate">CHỈNH SỬA ĐƠN</text>
+    </g>
+
+    <!-- Button 4: HỦY ĐƠN -->
+    <g transform="translate(760, 14)">
+      <rect width="232" height="40" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+      <g transform="translate(64, 12) scale(0.6666666666666666)" color="#334155"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15 9-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m9 9 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+      <text x="90" y="25" class="btn-slate">HỦY ĐƠN</text>
+    </g>
+  </g>
+</svg>

@@ -1,40 +1,8 @@
 import { Printer, X, FileText, User, Calendar } from 'lucide-react';
 import type { Order } from '../model/types';
 
-interface PrintRecord {
-  id: string;
-  printedAt: string;
-  printedBy: string;
-  waybill: string;
-  templateType: string;
-  status: 'Thành công' | 'Thất bại';
-}
-
-export function PrintHistoryDrawer({
-  order,
-  onClose,
-}: {
-  order: Order;
-  onClose: () => void;
-}) {
-  const printRecords: PrintRecord[] = [
-    {
-      id: 'P101',
-      printedAt: '12/09/2026 11:35',
-      printedBy: 'S983262 (Shop)',
-      waybill: order.id,
-      templateType: 'Tem nhiệt K46 (100x50mm)',
-      status: 'Thành công',
-    },
-    {
-      id: 'P102',
-      printedAt: '12/09/2026 14:02',
-      printedBy: 'S983262 (Shop)',
-      waybill: order.id,
-      templateType: 'Tem nhiệt K46 (100x50mm)',
-      status: 'Thành công',
-    },
-  ];
+export function PrintHistoryDrawer({ order, onClose }: { order: Order; onClose: () => void }) {
+  const printRecords = [...(order.printHistory || [])].reverse();
 
   return (
     <div className="drawer-overlay" onClick={onClose}>
@@ -51,17 +19,21 @@ export function PrintHistoryDrawer({
 
         <div className="drawer-body">
           <p className="drawer-desc">
-            Danh sách tất cả các lần in hoặc in lại tem nhãn vận chuyển đã phát sinh cho đơn hàng này.
+            Đơn hàng đã được in <b>{printRecords.length} lần</b>. Dưới đây là người in, thời gian và
+            mẫu nhãn của từng lần.
           </p>
 
           <div className="print-records-list">
+            {printRecords.length === 0 && (
+              <div className="activity-empty-state">Đơn hàng chưa được in nhãn.</div>
+            )}
             {printRecords.map((rec, idx) => (
               <div key={rec.id} className="print-record-card">
-                <div className="record-badge-num">Lần {idx + 1}</div>
+                <div className="record-badge-num">Lần {printRecords.length - idx}</div>
                 <div className="record-details">
                   <div className="record-meta-line">
                     <span>
-                      <Calendar size={13} /> {rec.printedAt}
+                      <Calendar size={13} /> {new Date(rec.printedAt).toLocaleString('vi-VN')}
                     </span>
                     <span className="tag-success">{rec.status}</span>
                   </div>
@@ -73,6 +45,11 @@ export function PrintHistoryDrawer({
                   <div className="record-meta-line">
                     <span>
                       <FileText size={13} /> Khổ tem: <b>{rec.templateType}</b>
+                    </span>
+                  </div>
+                  <div className="record-meta-line">
+                    <span>
+                      Mã vận đơn: <b>{rec.waybill}</b>
                     </span>
                   </div>
                 </div>

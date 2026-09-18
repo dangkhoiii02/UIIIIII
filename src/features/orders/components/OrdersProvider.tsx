@@ -28,9 +28,18 @@ export function OrdersProvider({
         service.cancel(id);
         setOrders(service.list());
       },
-      markPrinted: (ids: string[]) => {
-        service.markPrinted(ids);
+      markPrinted: (ids: string[], detail?: Parameters<typeof service.markPrinted>[1]) => {
+        service.markPrinted(ids, detail);
         setOrders(service.list());
+      },
+      recordAccessAudit: (id: string, detail: Parameters<typeof service.recordAccessAudit>[1]) => {
+        service.recordAccessAudit(id, detail);
+        setOrders(service.list());
+      },
+      applyOperation: (id: string, operation: Parameters<typeof service.applyOperation>[1]) => {
+        const result = service.applyOperation(id, operation);
+        setOrders(service.list());
+        return result;
       },
       resetDb: () => {
         const fresh = service.resetDb();
@@ -42,4 +51,3 @@ export function OrdersProvider({
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>;
 }
-

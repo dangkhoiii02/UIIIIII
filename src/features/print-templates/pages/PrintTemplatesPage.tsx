@@ -42,8 +42,8 @@ export default function PrintTemplatesPage() {
       statusFilter === 'all'
         ? true
         : statusFilter === 'active'
-        ? t.isActive
-        : !t.isActive;
+          ? t.isActive
+          : !t.isActive;
     return matchSearch && matchStatus;
   });
 
@@ -286,8 +286,8 @@ export default function PrintTemplatesPage() {
                 {st === 'all'
                   ? 'Tất cả'
                   : st === 'active'
-                  ? 'Đang dùng'
-                  : 'Tạm dừng'}
+                    ? 'Đang dùng'
+                    : 'Tạm dừng'}
               </button>
             ))}
           </div>
@@ -304,7 +304,7 @@ export default function PrintTemplatesPage() {
                 <th>Tên Mẫu & Kích Thước</th>
                 <th>Máy In Tương Thích</th>
                 <th>Mô Tả / Ứng Dụng</th>
-                <th>Mặc Định System</th>
+                <th>Mặc Định</th>
                 <th>Trạng Thái</th>
                 <th style={{ textAlign: 'right' }}>Thao Tác</th>
               </tr>

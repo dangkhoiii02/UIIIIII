@@ -96,7 +96,7 @@ export function decodeDraft(raw: string | null): SheetRow[] | null {
     const value: unknown = JSON.parse(raw);
     if (
       !Array.isArray(value) ||
-      value.length !== 25 ||
+      value.length === 0 ||
       value.some(
         (row) =>
           !row ||
@@ -110,4 +110,76 @@ export function decodeDraft(raw: string | null): SheetRow[] | null {
   } catch {
     return null;
   }
+}
+export function generateTemplateCsv(level: AddressLevel): string {
+  const cols = sheetColumns(level);
+  const headers = cols.map((c) => (c.required ? `${c.label} [*]` : c.label)).join(',');
+
+  const sample1 =
+    level === 2
+      ? 'SHOP001,Nguyễn Văn An,0901234567,123 Nguyễn Huệ,Thành phố Hồ Chí Minh,Phường Bến Nghé,Áo thun cotton cao cấp,500,250000,250000,Cho xem hàng không cho thử'
+      : 'SHOP001,Nguyễn Văn An,0901234567,123 Nguyễn Huệ,Thành phố Hồ Chí Minh,Quận 1,Phường Bến Nghé,Áo thun cotton cao cấp,500,250000,250000,Cho xem hàng không cho thử';
+
+  const sample2 =
+    level === 2
+      ? 'SHOP002,Trần Thị Bích,0987654321,45 Cầu Giấy,Thành phố Hà Nội,Phường Dịch Vọng,Bộ mỹ phẩm dưỡng da,350,450000,450000,Giao giờ hành chính'
+      : 'SHOP002,Trần Thị Bích,0987654321,45 Cầu Giấy,Thành phố Hà Nội,Quận Cầu Giấy,Phường Dịch Vọng,Bộ mỹ phẩm dưỡng da,350,450000,450000,Giao giờ hành chính';
+
+  return `\uFEFF${headers}\n${sample1}\n${sample2}\n`;
+}
+
+export function parseImportedSpreadsheet(content: string, level: AddressLevel): SheetRow[] {
+  const clean = content.replace(/^\uFEFF/, '').trim();
+  if (!clean) return [];
+
+  const lines: string[][] = [];
+  const rawLines = clean.split(/\r?\n/);
+
+  for (const rawLine of rawLines) {
+    if (!rawLine.trim()) continue;
+    const delimiter = rawLine.includes('\t') ? '\t' : rawLine.includes(';') ? ';' : ',';
+
+    const cells: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < rawLine.length; i++) {
+      const char = rawLine[i];
+      if (char === '"') {
+        if (inQuotes && rawLine[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === delimiter && !inQuotes) {
+        cells.push(cur.trim());
+        cur = '';
+      } else {
+        cur += char;
+      }
+    }
+    cells.push(cur.trim());
+    lines.push(cells);
+  }
+
+  if (lines.length === 0) return [];
+
+  const firstLineJoined = (lines[0] ?? []).join(' ').toLowerCase();
+  const hasHeader =
+    firstLineJoined.includes('người nhận') ||
+    firstLineJoined.includes('sđt') ||
+    firstLineJoined.includes('mã đơn') ||
+    firstLineJoined.includes('địa chỉ') ||
+    firstLineJoined.includes('hàng hóa');
+
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+  const cols = sheetColumns(level);
+
+  return dataLines.map((cells) => {
+    const row: SheetRow = {};
+    cols.forEach((col, idx) => {
+      row[col.key] = cells[idx] ?? '';
+    });
+    return row;
+  });
 }

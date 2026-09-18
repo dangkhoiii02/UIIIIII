@@ -23,6 +23,7 @@ export function SheetGrid({
   onChange: (rows: SheetRow[]) => void;
 }) {
   const columns = sheetColumns(level);
+  const hasRetryErrors = rows.some((row) => row._errorMessage);
 
   function paste(event: ClipboardEvent<HTMLInputElement | HTMLSelectElement>, row: number, col: number) {
     const text = event.clipboardData.getData('text');
@@ -44,6 +45,7 @@ export function SheetGrid({
         <thead>
           <tr>
             <th>STT</th>
+            {hasRetryErrors && <th className="sheet-error-heading">Lỗi cần sửa</th>}
             {columns.map((column) => (
               <th key={column.key}>
                 {column.label}
@@ -55,7 +57,19 @@ export function SheetGrid({
         <tbody>
           {rows.map((row, index) => (
             <tr key={index} className={checked ? validateRow(row, level) : ''} id={`row-${index + 1}`}>
-              <td>{index + 1}</td>
+              <td>{row._sourceLine || index + 1}</td>
+              {hasRetryErrors && (
+                <td className="sheet-error-cell">
+                  {row._errorMessage ? (
+                    <div className="sheet-row-error">
+                      <strong>{row._errorCode}</strong>
+                      <span>{row._errorMessage}</span>
+                    </div>
+                  ) : (
+                    <span className="sheet-row-error-empty">—</span>
+                  )}
+                </td>
+              )}
               {columns.map((column, col) => {
                 const options = getOptions(column.key);
                 const cellValue = row[column.key] ?? '';
@@ -110,4 +124,3 @@ export function SheetGrid({
     </div>
   );
 }
-

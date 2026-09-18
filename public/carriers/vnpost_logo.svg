@@ -1,0 +1,7 @@
+<svg width="160" height="52" viewBox="0 0 160 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="1" width="158" height="50" rx="12" fill="#FFFAEB" stroke="#FDE68A" stroke-width="2"/>
+  <rect x="10" y="9" width="34" height="34" rx="9" fill="#F5B400"/>
+  <path d="M16 20h22l-8 5h-9l-5-5Zm4 8h16l-7 5h-5l-4-5Z" fill="white"/>
+  <text x="52" y="25" fill="#BD8500" font-family="Arial, sans-serif" font-size="13" font-weight="800">VIETNAM</text>
+  <text x="52" y="39" fill="#344054" font-family="Arial, sans-serif" font-size="11" font-weight="700">POST</text>
+</svg>

@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 440" width="920" height="440">
+  <defs>
+    <style>
+      .title { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; fill: #0f172a; }
+      .sub { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; fill: #64748b; }
+      .sec-title { font-family: 'Inter', system-ui, sans-serif; font-size: 13px; font-weight: 700; fill: #0f172a; }
+      .card { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; rx: 12px; }
+    </style>
+  </defs>
+
+  <rect width="920" height="440" fill="#f8fafc"/>
+
+  <!-- Header -->
+  <text x="32" y="44" class="title" font-size="22">SuperPlatform — Badges, Pills &amp; Visibility Tags</text>
+  <text x="32" y="66" class="sub">Tất cả các loại huy hiệu trạng thái chặng, nhãn quyền Shop / Nội bộ và Tag nhà vận chuyển</text>
+
+  <g transform="translate(32, 90)">
+    <!-- Card 1: Stage Status Pills -->
+    <rect width="856" height="150" class="card"/>
+    <text x="24" y="30" class="sec-title">Stage Status Badges (Huy hiệu trạng thái chặng)</text>
+    <text x="24" y="48" class="sub">Thiết kế góc tròn 9999px, padding 2.5px 9px, text SemiBold 11px, tự động cắt ngắn khi co hẹp</text>
+
+    <g transform="translate(24, 70)">
+      <!-- Done Green -->
+      <g transform="translate(0, 0)">
+        <rect width="180" height="24" rx="12" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1"/>
+        <text x="14" y="16" font-family="'Inter', sans-serif" font-size="11" font-weight="600" fill="#047857">Đã bàn giao nhà vận chuyển...</text>
+      </g>
+
+      <!-- Warn Yellow -->
+      <g transform="translate(195, 0)">
+        <rect width="185" height="24" rx="12" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1"/>
+        <text x="14" y="16" font-family="'Inter', sans-serif" font-size="11" font-weight="600" fill="#B45309">Giao hàng không thành công</text>
+      </g>
+
+      <!-- In-transit Blue -->
+      <g transform="translate(395, 0)">
+        <rect width="150" height="24" rx="12" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+        <text x="14" y="16" font-family="'Inter', sans-serif" font-size="11" font-weight="600" fill="#2563EB">Đang đi giao hàng</text>
+      </g>
+
+      <!-- Error Red -->
+      <g transform="translate(560, 0)">
+        <rect width="125" height="24" rx="12" fill="#FEF2F2" stroke="#FECDD3" stroke-width="1"/>
+        <text x="14" y="16" font-family="'Inter', sans-serif" font-size="11" font-weight="600" fill="#DC2626">Hủy đơn hàng</text>
+      </g>
+
+      <!-- Pending Slate -->
+      <g transform="translate(700, 0)">
+        <rect width="105" height="24" rx="12" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+        <text x="14" y="16" font-family="'Inter', sans-serif" font-size="11" font-weight="600" fill="#64748B">Chờ lấy hàng</text>
+      </g>
+    </g>
+
+    <!-- Card 2: Role & Visibility + Carriers -->
+    <g transform="translate(0, 170)">
+      <rect width="856" height="150" class="card"/>
+      <text x="24" y="30" class="sec-title">Visibility Role Pills &amp; Carrier Tags</text>
+      <text x="24" y="48" class="sub">Nhãn định danh Shop vs Nội bộ (Admin) và định danh đối tác vận chuyển</text>
+
+      <g transform="translate(24, 70)">
+        <!-- Shop Role Pill -->
+        <g transform="translate(0, 0)">
+          <rect width="60" height="22" rx="11" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+          <text x="13" y="15" font-family="'Inter', sans-serif" font-size="10.5" font-weight="700" fill="#2563EB">SHOP</text>
+        </g>
+
+        <!-- Internal Role Pill -->
+        <g transform="translate(75, 0)">
+          <rect width="72" height="22" rx="11" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1"/>
+          <text x="12" y="15" font-family="'Inter', sans-serif" font-size="10.5" font-weight="700" fill="#7C3AED">NỘI BỘ</text>
+        </g>
+
+        <!-- Carrier Tag 1 -->
+        <g transform="translate(170, 0)">
+          <rect width="105" height="22" rx="4" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+          <text x="10" y="15" font-family="'Inter', sans-serif" font-size="11.5" font-weight="600" fill="#475569">NVC: SuperShip</text>
+        </g>
+
+        <!-- Carrier Tag 2 -->
+        <g transform="translate(290, 0)">
+          <rect width="115" height="22" rx="4" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+          <text x="10" y="15" font-family="'Inter', sans-serif" font-size="11.5" font-weight="600" fill="#475569">NVC: SPX Express</text>
+        </g>
+
+        <!-- Carrier Tag 3 -->
+        <g transform="translate(420, 0)">
+          <rect width="105" height="22" rx="4" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+          <text x="10" y="15" font-family="'Inter', sans-serif" font-size="11.5" font-weight="600" fill="#475569">NVC: BEST</text>
+        </g>
+
+        <!-- Carrier Tag 4 -->
+        <g transform="translate(540, 0)">
+          <rect width="85" height="22" rx="4" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+          <text x="10" y="15" font-family="'Inter', sans-serif" font-size="11.5" font-weight="600" fill="#475569">NVC: GHN</text>
+        </g>
+
+        <!-- Raw Monospace Code Pill -->
+        <g transform="translate(640, 0)">
+          <rect width="165" height="22" rx="4" fill="#EDE9FE" stroke="#DDD6FE" stroke-width="1"/>
+          <text x="10" y="15" font-family="monospace" font-size="10.5" font-weight="600" fill="#6D28D9">SPF_DELIVERY_OUT</text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
