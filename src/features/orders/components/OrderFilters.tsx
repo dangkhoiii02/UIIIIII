@@ -23,7 +23,7 @@ const STATUS_OPTIONS: SelectOption[] = [
   { value: '', label: 'Tất cả trạng thái' },
   ...SPF_STATUS_CATALOG.map((item) => ({
     value: item.name,
-    label: `${item.code} · ${item.name}`,
+    label: item.name,
   })),
 ];
 

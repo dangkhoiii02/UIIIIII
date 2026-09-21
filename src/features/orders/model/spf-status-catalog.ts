@@ -4,6 +4,8 @@ export type SpfStatusCode =
   | 'SPF-0201'
   | 'SPF-0202'
   | 'SPF-0301'
+  | 'SPF-0302'
+  | 'SPF-0303'
   | 'SPF-0401'
   | 'SPF-0402'
   | 'SPF-0403'
@@ -47,6 +49,7 @@ export type SpfStatusGroup =
   | 'Khởi tạo'
   | 'Hủy đơn'
   | 'Chờ lấy hàng'
+  | 'Tìm tài xế'
   | 'Đang lấy hàng'
   | 'Đã lấy hàng'
   | 'Bàn giao'
@@ -462,6 +465,20 @@ export const SPF_STATUS_CATALOG = [
     docUrl:
       'https://supertek.sg.larksuite.com/docx/NFzAdToProuStUxLCM4lwCxxg0d#share-Wm7Ydx12fouswaxJxEplnuLXgQe',
   },
+  {
+    stt: 44,
+    group: 'Tìm tài xế',
+    code: 'SPF-0302',
+    name: 'Đang tìm tài xế',
+    description: 'Nhà vận chuyển tức thời đang thực hiện phân bổ tài xế cho đơn hàng.',
+  },
+  {
+    stt: 45,
+    group: 'Tìm tài xế',
+    code: 'SPF-0303',
+    name: 'Không tìm được tài xế',
+    description: 'Không còn phương án phân bổ tài xế tự động; cần retry, đổi phương án hoặc hủy.',
+  },
 ] as const satisfies readonly SpfStatusItem[];
 
 export type SpfStatusName = (typeof SPF_STATUS_CATALOG)[number]['name'];
@@ -526,6 +543,7 @@ export function isSpfFailureStatus(code: SpfStatusCode): boolean {
   return [
     'SPF-0102',
     'SPF-0202',
+    'SPF-0303',
     'SPF-0402',
     'SPF-0603',
     'SPF-0802',
@@ -536,13 +554,7 @@ export function isSpfFailureStatus(code: SpfStatusCode): boolean {
 }
 
 export type SpfStatusTone =
-  | 'neutral'
-  | 'warning'
-  | 'info'
-  | 'success'
-  | 'danger'
-  | 'returning'
-  | 'cancelled';
+  'neutral' | 'warning' | 'info' | 'success' | 'danger' | 'returning' | 'cancelled';
 
 /** Màu ngữ nghĩa dùng thống nhất cho badge trạng thái ở mọi màn hình Order. */
 export function getSpfStatusTone(code: SpfStatusCode): SpfStatusTone {

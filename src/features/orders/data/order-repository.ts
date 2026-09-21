@@ -16,6 +16,7 @@ import {
   type SpfStatusName,
 } from '../model/spf-status-catalog';
 import { CARRIER_PROFILES, getCarrierFacilityCode } from '@/shared/lib/carriers';
+import { getMockApiOrders, MOCK_ORDER_API_BASE_URL } from './mock-order-api';
 
 export interface OrderRepository {
   list(): Order[];
@@ -28,7 +29,7 @@ export interface OrderRepository {
   resetDb(): Order[];
 }
 
-const STORAGE_KEY = 'superplatform:db:orders:v23';
+const STORAGE_KEY = 'superplatform:db:orders:mock-api-v2';
 
 const DEFAULT_SHOP_META = {
   clientCode: 'CL-S275518',
@@ -135,10 +136,38 @@ const FEATURED_SEED_ORDERS: Order[] = [
           carrierStatusCode: 'IN_DELIVERY',
           carrierUpdatedAt: '2026-09-17T09:31:00+07:00',
           webhookEvents: [
-            instantCarrierEvent('gsm-created', '2026-09-17T09:05:20+07:00', 'BOOKING_CREATED', 'Đã tạo chuyến giao hỏa tốc', 'SPF-0301', 'Điểm lấy của Shop'),
-            instantCarrierEvent('gsm-assigned', '2026-09-17T09:08:00+07:00', 'DRIVER_ASSIGNED', 'Đã tìm thấy tài xế', 'SPF-0401', 'Quận 8, Thành phố Hồ Chí Minh'),
-            instantCarrierEvent('gsm-picked', '2026-09-17T09:18:00+07:00', 'PICKED_UP', 'Tài xế đã nhận kiện hàng', 'SPF-0501', '231/15 Dương Bá Trạc, Quận 8'),
-            instantCarrierEvent('gsm-delivering', '2026-09-17T09:31:00+07:00', 'IN_DELIVERY', 'Đang giao tới người nhận', 'SPF-0801', 'Quận 1, Thành phố Hồ Chí Minh'),
+            instantCarrierEvent(
+              'gsm-created',
+              '2026-09-17T09:05:20+07:00',
+              'BOOKING_CREATED',
+              'Đã tạo chuyến giao hỏa tốc',
+              'SPF-0301',
+              'Điểm lấy của Shop',
+            ),
+            instantCarrierEvent(
+              'gsm-assigned',
+              '2026-09-17T09:08:00+07:00',
+              'DRIVER_ASSIGNED',
+              'Đã tìm thấy tài xế',
+              'SPF-0401',
+              'Quận 8, Thành phố Hồ Chí Minh',
+            ),
+            instantCarrierEvent(
+              'gsm-picked',
+              '2026-09-17T09:18:00+07:00',
+              'PICKED_UP',
+              'Tài xế đã nhận kiện hàng',
+              'SPF-0501',
+              '231/15 Dương Bá Trạc, Quận 8',
+            ),
+            instantCarrierEvent(
+              'gsm-delivering',
+              '2026-09-17T09:31:00+07:00',
+              'IN_DELIVERY',
+              'Đang giao tới người nhận',
+              'SPF-0801',
+              'Quận 1, Thành phố Hồ Chí Minh',
+            ),
           ],
         },
       ],
@@ -224,11 +253,46 @@ const FEATURED_SEED_ORDERS: Order[] = [
           carrierStatusCode: 'DELIVERED',
           carrierUpdatedAt: '2026-09-17T08:49:00+07:00',
           webhookEvents: [
-            instantCarrierEvent('grab-created', '2026-09-17T08:10:15+07:00', 'BOOKING_CREATED', 'Đã tạo chuyến GrabExpress', 'SPF-0301', 'Điểm lấy của Shop'),
-            instantCarrierEvent('grab-assigned', '2026-09-17T08:12:00+07:00', 'DRIVER_ASSIGNED', 'Tài xế đã nhận chuyến', 'SPF-0401', 'Quận 8, Thành phố Hồ Chí Minh'),
-            instantCarrierEvent('grab-picked', '2026-09-17T08:20:00+07:00', 'PICKED_UP', 'Đã nhận kiện từ Shop', 'SPF-0501', '231/15 Dương Bá Trạc, Quận 8'),
-            instantCarrierEvent('grab-arriving', '2026-09-17T08:42:00+07:00', 'ARRIVING', 'Tài xế sắp đến điểm giao', 'SPF-0801', 'Quận 3, Thành phố Hồ Chí Minh'),
-            instantCarrierEvent('grab-delivered', '2026-09-17T08:49:00+07:00', 'DELIVERED', 'Giao hàng thành công', 'SPF-0901', '18A Võ Văn Tần, Quận 3'),
+            instantCarrierEvent(
+              'grab-created',
+              '2026-09-17T08:10:15+07:00',
+              'BOOKING_CREATED',
+              'Đã tạo chuyến GrabExpress',
+              'SPF-0301',
+              'Điểm lấy của Shop',
+            ),
+            instantCarrierEvent(
+              'grab-assigned',
+              '2026-09-17T08:12:00+07:00',
+              'DRIVER_ASSIGNED',
+              'Tài xế đã nhận chuyến',
+              'SPF-0401',
+              'Quận 8, Thành phố Hồ Chí Minh',
+            ),
+            instantCarrierEvent(
+              'grab-picked',
+              '2026-09-17T08:20:00+07:00',
+              'PICKED_UP',
+              'Đã nhận kiện từ Shop',
+              'SPF-0501',
+              '231/15 Dương Bá Trạc, Quận 8',
+            ),
+            instantCarrierEvent(
+              'grab-arriving',
+              '2026-09-17T08:42:00+07:00',
+              'ARRIVING',
+              'Tài xế sắp đến điểm giao',
+              'SPF-0801',
+              'Quận 3, Thành phố Hồ Chí Minh',
+            ),
+            instantCarrierEvent(
+              'grab-delivered',
+              '2026-09-17T08:49:00+07:00',
+              'DELIVERED',
+              'Giao hàng thành công',
+              'SPF-0901',
+              '18A Võ Văn Tần, Quận 3',
+            ),
           ],
         },
       ],
@@ -864,7 +928,8 @@ function ensureWebhookSeed(order: Order, index: number): Order {
         },
       ]
     : [];
-  const pickupCarrier = shipping.pickupCarrier || stages.find((stage) => stage.key === 'pickup')?.carrier;
+  const pickupCarrier =
+    shipping.pickupCarrier || stages.find((stage) => stage.key === 'pickup')?.carrier;
   const deliveryCarrier =
     shipping.deliveryCarrier || stages.find((stage) => stage.key === 'delivery')?.carrier;
   const normalizeCarrier = (value = '') => value.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -884,8 +949,7 @@ function ensureWebhookSeed(order: Order, index: number): Order {
     shipperDeliveryPhone:
       order.shipperDeliveryPhone || `091${String(2300000 + index * 173).slice(-7)}`,
     shipperDeliveryName: deliveryShipperName,
-    shipperDeliveryCode:
-      order.shipperDeliveryCode || `DRV-${String(102 + index).padStart(3, '0')}`,
+    shipperDeliveryCode: order.shipperDeliveryCode || `DRV-${String(102 + index).padStart(3, '0')}`,
     shipperReturnPhone:
       order.shipperReturnPhone ||
       (stages.some((stage) => stage.key === 'return')
@@ -898,8 +962,7 @@ function ensureWebhookSeed(order: Order, index: number): Order {
         : undefined),
     pickupAttempts: order.pickupAttempts || (order.spfCode === 'SPF-0402' ? 2 : 1),
     deliveryAttempts: order.deliveryAttempts || (order.spfCode === 'SPF-0802' ? 2 : 1),
-    finalReturnAttempts:
-      order.finalReturnAttempts || (order.spfCode === 'SPF-1107' ? 2 : 1),
+    finalReturnAttempts: order.finalReturnAttempts || (order.spfCode === 'SPF-1107' ? 2 : 1),
     cancelRequestedAt:
       order.cancelRequestedAt ||
       (['SPF-0201', 'SPF-0202'].includes(order.spfCode) ? order.updatedAt : undefined),
@@ -938,12 +1001,32 @@ const MATRIX_DEMO_SPECS: Array<{
   note: string;
 }> = [
   { id: '110000000102', code: 'SPF-0102', carrier: 'GHN', note: 'Demo: tạo vận đơn thất bại.' },
-  { id: '110000000402', code: 'SPF-0402', carrier: 'Viettel Post', note: 'Demo: lấy hàng thất bại.' },
-  { id: '110000000501', code: 'SPF-0501', carrier: 'GHN', note: 'Demo Nội bộ: đổi nhà vận chuyển.' },
-  { id: '110000000603', code: 'SPF-0603', carrier: 'J&T Express', note: 'Demo: bàn giao NVC thất bại.' },
+  {
+    id: '110000000402',
+    code: 'SPF-0402',
+    carrier: 'Viettel Post',
+    note: 'Demo: lấy hàng thất bại.',
+  },
+  {
+    id: '110000000501',
+    code: 'SPF-0501',
+    carrier: 'GHN',
+    note: 'Demo Nội bộ: đổi nhà vận chuyển.',
+  },
+  {
+    id: '110000000603',
+    code: 'SPF-0603',
+    carrier: 'J&T Express',
+    note: 'Demo: bàn giao NVC thất bại.',
+  },
   { id: '110000000702', code: 'SPF-0702', carrier: 'BEST Express', note: 'Demo: chờ giao hàng.' },
   { id: '110000001005', code: 'SPF-1005', carrier: 'GHN', note: 'Demo: lấy hàng hoàn thất bại.' },
-  { id: '110000001103', code: 'SPF-1103', carrier: 'J&T Express', note: 'Demo: bàn giao hoàn cuối thất bại.' },
+  {
+    id: '110000001103',
+    code: 'SPF-1103',
+    carrier: 'J&T Express',
+    note: 'Demo: bàn giao hoàn cuối thất bại.',
+  },
   { id: '110000001107', code: 'SPF-1107', carrier: 'GHN', note: 'Demo: trả hàng thất bại.' },
 ];
 
@@ -976,7 +1059,10 @@ const MATRIX_DEMO_ORDERS: Order[] = MATRIX_DEMO_SPECS.map((spec, index) => {
         pickupCarrier: 'SuperShip',
         pickupTracking: `SS-PICK-${spec.id.slice(-6)}`,
         deliveryCarrier: spec.carrier,
-        deliveryTracking: `${spec.carrier.replace(/[^A-Z0-9]/gi, '').slice(0, 4).toUpperCase()}-${spec.id.slice(-7)}`,
+        deliveryTracking: `${spec.carrier
+          .replace(/[^A-Z0-9]/gi, '')
+          .slice(0, 4)
+          .toUpperCase()}-${spec.id.slice(-7)}`,
         carrierStatusText: `${spec.carrier} – ${SPF_STATUS_MAP[spec.code].name}`,
         currentStage,
       },
@@ -991,22 +1077,31 @@ const INITIAL_SEED_ORDERS: Order[] = [
   ...MATRIX_DEMO_ORDERS,
 ];
 
-function loadFromStorage(): Order[] | null {
+interface StoredOrderState {
+  seedSignature: string;
+  orders: Order[];
+}
+
+function loadFromStorage(expectedSeedSignature: string): Order[] | null {
   try {
     if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function')
       return null;
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (Array.isArray(data) && data.length > 0) {
-      // Đảm bảo toàn bộ mã đơn hàng tối đa 12 chữ số; giữ nguyên đầy đủ các chặng.
-      const sanitized = data.map((item) => {
+    const data = JSON.parse(raw) as StoredOrderState | Order[];
+    // Snapshot dạng mảng là format cũ. Snapshot mới chỉ hợp lệ khi khớp đúng
+    // chữ ký của fixture hiện tại, tránh giữ dữ liệu rỗng sau khi DataSeed đổi.
+    if (Array.isArray(data)) return null;
+    if (data.seedSignature !== expectedSeedSignature) return null;
+    if (Array.isArray(data.orders) && data.orders.length > 0) {
+      // Mã order_code của database hiện dùng 13 chữ số; giữ nguyên đầy đủ các chặng.
+      const sanitized = data.orders.map((item) => {
         if (item.region) {
           item.region = item.region.replace(/\s*·\s*/g, ', ');
         }
-        if (typeof item.id === 'string' && !/^\d{1,12}$/.test(item.id)) {
+        if (typeof item.id === 'string' && !/^\d{1,13}$/.test(item.id)) {
           const numOnly = item.id.replace(/\D/g, '');
-          item.id = numOnly.length >= 8 ? numOnly.slice(-12) : '826883962104';
+          item.id = numOnly.length >= 8 ? numOnly.slice(-13) : '9100000000001';
         }
         return item;
       });
@@ -1018,32 +1113,45 @@ function loadFromStorage(): Order[] | null {
   }
 }
 
-function saveToStorage(orders: Order[]): void {
+function saveToStorage(orders: Order[], seedSignature: string): void {
   try {
     if (typeof localStorage === 'undefined' || typeof localStorage.setItem !== 'function') return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ seedSignature, orders }));
   } catch (e) {
     console.warn('Cannot write to localStorage:', e);
   }
 }
 
 export function createPersistentOrderRepository(seed?: Order[]): OrderRepository {
-  const storedRecords = loadFromStorage();
-  let records: Order[] = storedRecords ?? seed ?? INITIAL_SEED_ORDERS;
-  if (storedRecords) {
-    const requiredDemoIds = new Set([
-      '409176285333',
-      ...MATRIX_DEMO_SPECS.map((spec) => spec.id),
-    ]);
+  const initialRecords = structuredClone(seed ?? INITIAL_SEED_ORDERS);
+  const seedSignature = JSON.stringify(
+    initialRecords.map((order) => [
+      order.id,
+      order.updatedAt,
+      order.spfCode,
+      order.name,
+      order.phone,
+      order.product,
+      order.selectedCarrier,
+      order.shippingInfo?.carrierStatusText,
+      order.shippingInfo?.stages?.length || 0,
+      order.statusHistory?.length || 0,
+    ]),
+  );
+  const storedRecords = loadFromStorage(seedSignature);
+  let records: Order[] = storedRecords ?? initialRecords;
+  const persist = () => saveToStorage(records, seedSignature);
+  if (storedRecords && !seed) {
+    const requiredDemoIds = new Set(['409176285333', ...MATRIX_DEMO_SPECS.map((spec) => spec.id)]);
     const missingDemoOrders = INITIAL_SEED_ORDERS.filter(
       (order) => requiredDemoIds.has(order.id) && !records.some((item) => item.id === order.id),
     );
     if (missingDemoOrders.length) {
       records = [...records, ...missingDemoOrders];
-      saveToStorage(records);
+      persist();
     }
   } else {
-    saveToStorage(records);
+    persist();
   }
 
   const assertInput = (input: OrderInput) => {
@@ -1052,8 +1160,8 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
   };
 
   const generateOrderId = () => {
-    // Mã đơn hàng số ngẫu nhiên tối đa 12 chữ số
-    return String(Math.floor(100000000000 + Math.random() * 900000000000));
+    // Cùng độ dài 13 chữ số với order_code hiện tại trong database seed.
+    return String(Math.floor(9_300_000_000_000 + Math.random() * 600_000_000_000));
   };
 
   return {
@@ -1080,14 +1188,14 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
         codPaymentStatus: 'UNPAID',
       }));
       records = [...created, ...records];
-      saveToStorage(records);
+      persist();
       return structuredClone(created);
     },
     update(id, input) {
       assertInput(input);
       if (!records.some((o) => o.id === id)) throw new Error('Không tìm thấy đơn hàng.');
       records = records.map((order) => (order.id === id ? { ...order, ...input } : order));
-      saveToStorage(records);
+      persist();
     },
     cancel(id) {
       const current = records.find((order) => order.id === id);
@@ -1120,7 +1228,7 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
             }
           : order,
       );
-      saveToStorage(records);
+      persist();
     },
     markPrinted(ids, detail) {
       records = records.map((order) =>
@@ -1149,7 +1257,7 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
             }
           : order,
       );
-      saveToStorage(records);
+      persist();
     },
     recordAccessAudit(id, detail) {
       records = records.map((order) =>
@@ -1167,7 +1275,7 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
             }
           : order,
       );
-      saveToStorage(records);
+      persist();
     },
     applyOperation(id, operation) {
       const current = records.find((order) => order.id === id);
@@ -1224,8 +1332,12 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
         if (!['SPF-0501', 'SPF-0502'].includes(current.spfCode)) {
           throw new Error('Chỉ có thể đổi NVC khi Order đang ở giai đoạn NVC nhận hàng.');
         }
-        const fromCarrier = current.shippingInfo?.deliveryCarrier || current.selectedCarrier || 'Chưa gán';
-        if (fromCarrier.trim().toLocaleLowerCase('vi') === operation.carrier.trim().toLocaleLowerCase('vi')) {
+        const fromCarrier =
+          current.shippingInfo?.deliveryCarrier || current.selectedCarrier || 'Chưa gán';
+        if (
+          fromCarrier.trim().toLocaleLowerCase('vi') ===
+          operation.carrier.trim().toLocaleLowerCase('vi')
+        ) {
           throw new Error('NVC mới phải khác NVC đang phụ trách.');
         }
         next = {
@@ -1268,12 +1380,12 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
       }
 
       records = records.map((order) => (order.id === id ? next : order));
-      saveToStorage(records);
+      persist();
       return structuredClone(next);
     },
     resetDb() {
-      records = structuredClone(INITIAL_SEED_ORDERS);
-      saveToStorage(records);
+      records = structuredClone(initialRecords);
+      persist();
       return structuredClone(records);
     },
   };
@@ -1283,8 +1395,8 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
  * REST API Repository Adapter - Ready for Real Backend
  */
 export function createApiOrderRepository(baseUrl: string): OrderRepository {
-  console.log(`Initialized ApiOrderRepository connected to Backend: ${baseUrl}`);
-  return createPersistentOrderRepository();
+  console.info(`Order repository is using the simulated API at ${baseUrl}`);
+  return createPersistentOrderRepository(getMockApiOrders());
 }
 
 /**
@@ -1297,8 +1409,5 @@ export function createOrderRepository(): OrderRepository {
   const apiUrl =
     (import.meta.env.VITE_API_URL as string | undefined) ||
     (window as unknown as { VITE_API_URL?: string }).VITE_API_URL;
-  if (apiUrl) {
-    return createApiOrderRepository(apiUrl);
-  }
-  return createPersistentOrderRepository();
+  return createApiOrderRepository(apiUrl || MOCK_ORDER_API_BASE_URL);
 }

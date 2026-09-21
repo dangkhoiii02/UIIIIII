@@ -56,10 +56,16 @@ import {
   type OrderCapability,
   type OrderViewer,
 } from '../model/order-permissions';
+import {
+  canViewInstantDriverJourney,
+  formatInstantDistance,
+  formatInstantEta,
+} from '../model/instant-tracking';
 
 interface TransportLeg {
   key: ShippingStageItem['key'];
   role: string;
+  stageCode?: string;
   carrier: string;
   code: string;
   statusText: string;
@@ -88,6 +94,31 @@ interface JourneyStage {
   flowNote?: string;
   events: JourneyEvent[];
 }
+
+const COD_COLLECTION_LABELS: Record<number, string> = {
+  1: 'Không có COD',
+  2: 'Chờ thu',
+  3: 'Đã thu',
+  4: 'Thu một phần',
+  5: 'Không thu được',
+};
+
+const COD_SETTLEMENT_LABELS: Record<number, string> = {
+  1: 'Không áp dụng',
+  2: 'Chờ đối soát',
+  3: 'Đang xử lý',
+  4: 'Đã chuyển một phần',
+  5: 'Đã chuyển đủ',
+  6: 'Đang tạm giữ',
+};
+
+const COMPENSATION_LABELS: Record<number, string> = {
+  1: 'Không phát sinh',
+  2: 'Đang xem xét',
+  3: 'Đã phê duyệt',
+  4: 'Đã chi trả',
+  5: 'Bị từ chối',
+};
 
 interface ActionHistoryItem {
   id: number;
@@ -321,6 +352,7 @@ function getDetailTransportLegs(order: Order): TransportLeg[] {
     return {
       key: stage.key,
       role: roleByKey[stage.key],
+      stageCode: stage.stageCode,
       carrier: stage.carrier,
       code: stage.tracking,
       statusText,
@@ -478,17 +510,48 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
   const returnCode = order.shippingInfo?.returnTracking || 'STGS983262LM.826941743';
 
   if (order.serviceType === 'instant') {
-    const instantStage = order.shippingInfo?.stages?.find((stage) => stage.key === 'delivery');
-    const instantEvents = [...(instantStage?.webhookEvents || [])].sort(
-      (a, b) => new Date(a.eventAt).getTime() - new Date(b.eventAt).getTime(),
-    );
+    const instantStage =
+      order.shippingInfo?.stages?.find((stage) => stage.status === 'active') ||
+      order.shippingInfo?.stages?.find((stage) => stage.key === 'delivery') ||
+      order.shippingInfo?.stages?.[0];
+    const instantEvents = (
+      order.shippingInfo?.stages?.length
+        ? order.shippingInfo.stages.flatMap((stage) => stage.webhookEvents || [])
+        : instantStage?.webhookEvents || []
+    ).sort((a, b) => new Date(a.eventAt).getTime() - new Date(b.eventAt).getTime());
     const isDelivered = order.instantTracking?.state === 'DELIVERED';
-    const isPickedUp = instantEvents.some((event) => event.statusCode === 'PICKED_UP');
+    const isDriverNotFound = order.instantTracking?.state === 'DRIVER_NOT_FOUND';
+    const isPickedUp =
+      instantEvents.some(
+        (event) =>
+          event.statusCode === 'PICKED_UP' ||
+          event.statusCode === 'SPF-0501' ||
+          event.statusCode === 'PICKUP_COMPLETED' ||
+          event.statusCode === 'PENDING_DROP_OFF',
+      ) || order.spfCode >= 'SPF-0501';
+    const pickupStage = order.shippingInfo?.stages?.find((stage) => stage.key === 'pickup');
+    const pickupEventIds = new Set(pickupStage?.webhookEvents?.map((event) => event.id) || []);
     const pickupStatusCodes = new Set([
       'BOOKING_CREATED',
+      'DRIVER_ALLOCATING',
       'DRIVER_ASSIGNED',
       'DRIVER_TO_PICKUP',
       'PICKED_UP',
+      'PICKUP_COMPLETED',
+      'PENDING_DROP_OFF',
+      'PENDING_PICKUP',
+      'PICKING_UP',
+      'ARRIVING',
+      'ALLOCATING',
+      'ASSIGNED',
+      'FINDING',
+      'CREATING',
+      'SPF-0101',
+      'SPF-0301',
+      'SPF-0302',
+      'SPF-0303',
+      'SPF-0401',
+      'SPF-0501',
     ]);
     const toJourneyEvent = (event: CarrierWebhookEvent): JourneyEvent => ({
       time: new Intl.DateTimeFormat('vi-VN', {
@@ -499,8 +562,12 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
       label: event.statusText,
       visibility: 'shop',
     });
-    const pickupEvents = instantEvents.filter((event) => pickupStatusCodes.has(event.statusCode));
-    const deliveryEvents = instantEvents.filter((event) => !pickupStatusCodes.has(event.statusCode));
+    const pickupEvents = instantEvents.filter(
+      (event) => pickupEventIds.has(event.id) || pickupStatusCodes.has(event.statusCode),
+    );
+    const deliveryEvents = instantEvents.filter(
+      (event) => !pickupEventIds.has(event.id) && !pickupStatusCodes.has(event.statusCode),
+    );
 
     const instantJourney: JourneyStage[] = [
       {
@@ -508,8 +575,8 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
         name: 'Lấy hàng tại Shop',
         carrier: instantStage?.carrier || deliveryCarrier,
         code: instantStage?.tracking || deliveryCode,
-        status: isPickedUp ? 'Đã lấy hàng' : 'Đang lấy hàng',
-        state: isPickedUp ? 'done' : 'current',
+        status: isDriverNotFound ? 'Không tìm được tài xế' : isPickedUp ? 'Đã lấy hàng' : 'Đang lấy hàng',
+        state: isDriverNotFound ? 'error' : isPickedUp ? 'done' : 'current',
         flowNote: 'NVC hỏa tốc lấy trực tiếp tại Shop',
         events: pickupEvents.map(toJourneyEvent),
       },
@@ -520,6 +587,8 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
         code: instantStage?.tracking || deliveryCode,
         status: isDelivered
           ? 'Đã giao hàng'
+          : isDriverNotFound
+            ? 'Chưa bắt đầu'
           : isPickedUp
             ? order.instantTracking?.statusLabel || 'Đang giao hàng'
             : 'Chưa bắt đầu',
@@ -555,6 +624,61 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
     }
 
     return instantJourney;
+  }
+
+  const persistedStages = order.shippingInfo?.stages || [];
+  if (persistedStages.length) {
+    return persistedStages.map((stage) => ({
+      flow:
+        stage.key === 'pickup'
+          ? 'LẤY HÀNG'
+          : stage.key === 'delivery'
+            ? 'GIAO HÀNG'
+            : stage.key === 'return'
+              ? 'HOÀN HÀNG'
+              : 'TRẢ HÀNG CUỐI',
+      name: stage.title,
+      carrier: stage.carrier,
+      code: stage.tracking || 'NVC chưa cấp mã vận đơn',
+      status: stage.carrierStatusText || order.status,
+      state:
+        stage.status === 'completed'
+          ? 'done'
+          : stage.status === 'active'
+            ? isSpfFailureStatus(order.spfCode)
+              ? 'error'
+              : 'current'
+            : 'pending',
+      events: [...(stage.webhookEvents || [])]
+        .sort((left, right) => new Date(left.eventAt).getTime() - new Date(right.eventAt).getTime())
+        .map((event) => ({
+          time: formatDisplayDate(event.eventAt),
+          carrier: stage.carrier,
+          label: event.statusText,
+          visibility: 'shop' as const,
+          rawCode: event.statusCode,
+        })),
+    }));
+  }
+
+  if (phase === 'creating' && order.selectedCarrier) {
+    return [
+      {
+        flow: 'KHỞI TẠO VẬN ĐƠN',
+        name: 'Tạo vận đơn tại NVC',
+        carrier: order.selectedCarrier,
+        code: 'NVC chưa cấp mã vận đơn',
+        status: order.status,
+        state: isSpfFailureStatus(order.spfCode) ? 'error' : 'current',
+        events: (order.statusHistory || []).map((entry) => ({
+          time: formatDisplayDate(entry.changedAt),
+          carrier: 'SuperPlatform',
+          label: `${entry.statusName}${entry.reason ? ` · ${entry.reason}` : ''}`,
+          visibility: 'shop' as const,
+          rawCode: entry.statusCode,
+        })),
+      },
+    ];
   }
 
   if (isReturn) {
@@ -897,6 +1021,18 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
 }
 
 function getDetailActionHistory(order: Order): ActionHistoryItem[] {
+  if (order.statusHistory?.length) {
+    return [...order.statusHistory]
+      .sort((left, right) => new Date(right.changedAt).getTime() - new Date(left.changedAt).getTime())
+      .map((entry, index) => ({
+        id: 10_000 + index,
+        actor: 'SuperPlatform',
+        message: `đã cập nhật trạng thái Order sang “${entry.statusName}”${entry.reason ? `. ${entry.reason}` : '.'}`,
+        time: formatDisplayDate(entry.changedAt),
+        visibility: 'shop',
+      }));
+  }
+
   if (order.serviceType === 'instant') {
     const stage = order.shippingInfo?.stages?.find((item) => item.key === 'delivery');
     const carrier = stage?.carrier || order.selectedCarrier || 'Nhà vận chuyển';
@@ -1135,8 +1271,6 @@ function maskPhone(phone: string): string {
   return phone;
 }
 
-
-
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1172,7 +1306,13 @@ export default function OrderDetailPage() {
   const [selectedCarrier, setSelectedCarrier] = useState('');
   const [operationReason, setOperationReason] = useState('');
   const [pendingImages, setPendingImages] = useState<
-    Array<{ id: string; imageUrl: string; fileName: string; uploadedAt: string; uploadedBy: string }>
+    Array<{
+      id: string;
+      imageUrl: string;
+      fileName: string;
+      uploadedAt: string;
+      uploadedBy: string;
+    }>
   >([]);
   const [isStale, setIsStale] = useState(false);
 
@@ -1204,7 +1344,7 @@ export default function OrderDetailPage() {
   }, [id, order?.updatedAt]);
   const viewer: OrderViewer = isInternal
     ? { kind: 'internal' }
-    : { kind: 'shop', shopId: 'S275518' };
+    : { kind: 'shop', shopId: order?.shopId || 'S275518' };
 
   if (!order) {
     return (
@@ -1232,8 +1372,7 @@ export default function OrderDetailPage() {
     );
   }
 
-  const permission = (capability: OrderCapability) =>
-    getOrderPermission(viewer, order, capability);
+  const permission = (capability: OrderCapability) => getOrderPermission(viewer, order, capability);
 
   const openSupportRequest = (category = 'Đơn Hàng', content = '') => {
     setSupportPreset({ category, content });
@@ -1266,7 +1405,9 @@ export default function OrderDetailPage() {
       setOperationModal(null);
       notify(successMessage);
     } catch (error) {
-      setOperationError(error instanceof Error ? error.message : 'Thao tác thất bại. Vui lòng thử lại.');
+      setOperationError(
+        error instanceof Error ? error.message : 'Thao tác thất bại. Vui lòng thử lại.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -1359,13 +1500,15 @@ export default function OrderDetailPage() {
       time: formatDisplayDate(record.printedAt),
       visibility: 'shop',
     }));
-  const accessAuditActions: ActionHistoryItem[] = (order.accessAudit || []).map((record, index) => ({
-    id: -(1000 + index),
-    actor: record.viewedBy,
-    message: `đã xem SĐT shipper đang phụ trách lượt giao. Lý do: ${record.reason}.`,
-    time: formatDisplayDate(record.viewedAt),
-    visibility: 'internal',
-  }));
+  const accessAuditActions: ActionHistoryItem[] = (order.accessAudit || []).map(
+    (record, index) => ({
+      id: -(1000 + index),
+      actor: record.viewedBy,
+      message: `đã xem SĐT shipper đang phụ trách lượt giao. Lý do: ${record.reason}.`,
+      time: formatDisplayDate(record.viewedAt),
+      visibility: 'internal',
+    }),
+  );
   const carrierChangeActions: ActionHistoryItem[] = (order.carrierChangeHistory || []).map(
     (record, index) => ({
       id: -(2000 + index),
@@ -1418,9 +1561,7 @@ export default function OrderDetailPage() {
           </div>
 
           <div className="order-detail-header-right">
-            <span
-              className={`order-status-pill status-${getSpfStatusTone(order.spfCode)}`}
-            >
+            <span className={`order-status-pill status-${getSpfStatusTone(order.spfCode)}`}>
               {order.status}
             </span>
             <span className="order-header-created-date">
@@ -1656,7 +1797,9 @@ export default function OrderDetailPage() {
                   </div>
                   <div>
                     <h3 className="order-card-header-title">Thông tin vận hành nội bộ</h3>
-                    <span className="order-card-header-sub">Dữ liệu quản trị và đồng bộ trên SuperPlatform</span>
+                    <span className="order-card-header-sub">
+                      Dữ liệu quản trị và đồng bộ trên SuperPlatform
+                    </span>
                   </div>
                 </div>
                 <div className="order-card-body">
@@ -1664,8 +1807,7 @@ export default function OrderDetailPage() {
                     <div className="internal-ops-row">
                       <span className="ops-row-label">TRẠNG THÁI CHUẨN</span>
                       <div className="ops-row-val">
-                        <strong>{order.spfCode}</strong>
-                        <small>{order.status}</small>
+                        <strong>{order.status}</strong>
                       </div>
                     </div>
                     <div className="internal-ops-row">
@@ -1689,10 +1831,16 @@ export default function OrderDetailPage() {
                     <div className="internal-ops-row">
                       <span className="ops-row-label">TÌNH TRẠNG ĐỒNG BỘ</span>
                       <div className="ops-row-val">
-                        <strong className={order.syncStatus === 'FAILED' ? 'text-alert' : 'text-ok'}>
+                        <strong
+                          className={order.syncStatus === 'FAILED' ? 'text-alert' : 'text-ok'}
+                        >
                           {order.syncStatus === 'FAILED' ? 'Có lỗi đồng bộ' : 'Đã đồng bộ'}
                         </strong>
-                        <small>{order.updatedAt ? formatDisplayDate(order.updatedAt) : '12/09/2026 - 09:35'}</small>
+                        <small>
+                          {order.updatedAt
+                            ? formatDisplayDate(order.updatedAt)
+                            : '12/09/2026 - 09:35'}
+                        </small>
                       </div>
                     </div>
                     <div className="internal-ops-row">
@@ -1726,7 +1874,10 @@ export default function OrderDetailPage() {
                     {deliveryShipperBadge}
                   </span>
                 </div>
-                <div className="order-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div
+                  className="order-card-body"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+                >
                   {/* Box Shipper */}
                   <div className="shipper-info-box">
                     <div className="shipper-avatar">
@@ -1743,7 +1894,9 @@ export default function OrderDetailPage() {
                     <div className="shipper-meta">
                       <strong>{order.shipperDeliveryName || 'Trần Đình Quân'}</strong>
                       <span>
-                        {order.shipperDeliveryCode ? `${order.shipperDeliveryCode} · ` : 'DRV-105 · '}
+                        {order.shipperDeliveryCode
+                          ? `${order.shipperDeliveryCode} · `
+                          : 'DRV-105 · '}
                         {deliveryShipperStage?.carrier || 'Viettel Post'}
                       </span>
                     </div>
@@ -1786,8 +1939,14 @@ export default function OrderDetailPage() {
 
                   {/* Dòng thông báo bảo mật */}
                   <div className="shipper-security-note">
-                    <ShieldCheck size={14} style={{ color: '#16a34a', flexShrink: 0, marginTop: 1 }} />
-                    <span>Chỉ người dùng nội bộ được phân quyền mới có thể xem. Mỗi lần mở SĐT đều được ghi vào lịch sử hành động.</span>
+                    <ShieldCheck
+                      size={14}
+                      style={{ color: '#16a34a', flexShrink: 0, marginTop: 1 }}
+                    />
+                    <span>
+                      Chỉ người dùng nội bộ được phân quyền mới có thể xem. Mỗi lần mở SĐT đều được
+                      ghi vào lịch sử hành động.
+                    </span>
                   </div>
 
                   {/* Bằng chứng giao hàng (POD) */}
@@ -1813,7 +1972,11 @@ export default function OrderDetailPage() {
                             <ShieldCheck size={12} /> Đã xác thực
                           </span>
                           <span className="proof-count-text">{deliveryProofs.length} ảnh</span>
-                          {isDeliveryProofExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                          {isDeliveryProofExpanded ? (
+                            <ChevronUp size={15} />
+                          ) : (
+                            <ChevronDown size={15} />
+                          )}
                         </div>
                       </button>
 
@@ -1829,7 +1992,10 @@ export default function OrderDetailPage() {
                                 rel="noreferrer"
                                 title="Mở ảnh bằng chứng giao hàng"
                               >
-                                <img src={proof.imageUrl} alt="Ảnh bằng chứng giao hàng thành công" />
+                                <img
+                                  src={proof.imageUrl}
+                                  alt="Ảnh bằng chứng giao hàng thành công"
+                                />
                                 <div className="delivery-proof-meta">
                                   <strong>{proof.note}</strong>
                                   <span>
@@ -1861,11 +2027,24 @@ export default function OrderDetailPage() {
                 </h3>
               </div>
               <div className="order-card-body">
-                <div className="transport-legs-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div
+                  className="transport-legs-list"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+                >
                   {transportLegs.map((leg) => {
-                    const isDone = leg.state === 'passed' || leg.statusText.includes('thành công') || leg.statusText.includes('kết thúc');
-                    const isActive = leg.state === 'active' || leg.statusText.includes('Đang') || leg.statusText.includes('Chờ');
-                    const borderClass = isDone ? 'border-status-done' : isActive ? 'border-status-active' : 'border-status-warn';
+                    const isDone =
+                      leg.state === 'passed' ||
+                      leg.statusText.includes('thành công') ||
+                      leg.statusText.includes('kết thúc');
+                    const isActive =
+                      leg.state === 'active' ||
+                      leg.statusText.includes('Đang') ||
+                      leg.statusText.includes('Chờ');
+                    const borderClass = isDone
+                      ? 'border-status-done'
+                      : isActive
+                        ? 'border-status-active'
+                        : 'border-status-warn';
 
                     return (
                       <div
@@ -1879,28 +2058,36 @@ export default function OrderDetailPage() {
                           </div>
                           <div className="route-leg-info">
                             <strong className="route-leg-carrier-name">{leg.carrier}</strong>
+                            {isInternal && leg.stageCode && <small>Mã chặng: {leg.stageCode}</small>}
                             <div className="route-leg-waybill-wrap">
-                              <code>{leg.code}</code>
-                              <button
-                                type="button"
-                                className="btn-mini-copy"
-                                onClick={() => handleCopyWaybill(leg.code)}
-                                title="Sao chép mã vận đơn"
-                              >
-                                {copiedCode === leg.code ? (
-                                  <Check size={11} className="text-success" />
-                                ) : (
-                                  <Copy size={11} />
-                                )}
-                              </button>
+                              <code>{leg.code || 'NVC chưa cấp mã vận đơn'}</code>
+                              {leg.code && (
+                                <button
+                                  type="button"
+                                  className="btn-mini-copy"
+                                  onClick={() => handleCopyWaybill(leg.code)}
+                                  title="Sao chép mã vận đơn"
+                                >
+                                  {copiedCode === leg.code ? (
+                                    <Check size={11} className="text-success" />
+                                  ) : (
+                                    <Copy size={11} />
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
 
                         <div className="route-leg-right">
-                          <span className={`route-leg-status-badge ${leg.state}`}>{leg.statusText}</span>
+                          <span className={`route-leg-status-badge ${leg.state}`}>
+                            {leg.statusText}
+                          </span>
                           <span className="route-leg-time-sub">
-                            Cập nhật {formatDisplayDate(leg.carrierUpdatedAt || order.updatedAt || order.createdAt)}
+                            Cập nhật{' '}
+                            {formatDisplayDate(
+                              leg.carrierUpdatedAt || order.updatedAt || order.createdAt,
+                            )}
                           </span>
                         </div>
                       </div>
@@ -1921,12 +2108,18 @@ export default function OrderDetailPage() {
                       <span>
                         <Clock size={14} />
                         <small>
-                          {order.instantTracking.state === 'DELIVERED' ? 'Trạng thái' : 'Dự kiến tới'}
+                          {order.instantTracking.state === 'DELIVERED'
+                            ? 'Trạng thái'
+                            : order.instantTracking.state === 'DRIVER_NOT_FOUND'
+                              ? 'Phân bổ tài xế'
+                            : 'Dự kiến tới'}
                         </small>
                         <strong>
                           {order.instantTracking.state === 'DELIVERED'
                             ? 'Đã giao hàng'
-                            : `${order.instantTracking.etaMinutes} phút`}
+                            : order.instantTracking.state === 'DRIVER_NOT_FOUND'
+                              ? 'Thất bại'
+                            : formatInstantEta(order.instantTracking.etaMinutes)}
                         </strong>
                       </span>
                       <span>
@@ -1935,18 +2128,22 @@ export default function OrderDetailPage() {
                         <strong>
                           {order.instantTracking.state === 'DELIVERED'
                             ? '0 km'
-                            : `${order.instantTracking.remainingDistanceKm} km`}
+                            : order.instantTracking.state === 'DRIVER_NOT_FOUND'
+                              ? 'Chưa bắt đầu'
+                            : formatInstantDistance(order.instantTracking.remainingDistanceKm)}
                         </strong>
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      className="instant-transport-open-button"
-                      onClick={() => navigate(`/orders/${order.id}/live-tracking`)}
-                    >
-                      Xem vị trí và hành trình tài xế <ArrowRight size={14} />
-                    </button>
+                    {canViewInstantDriverJourney(order.instantTracking) && (
+                      <button
+                        type="button"
+                        className="instant-transport-open-button"
+                        onClick={() => navigate(`/orders/${order.id}/live-tracking`)}
+                      >
+                        Xem vị trí và hành trình tài xế <ArrowRight size={14} />
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -2114,7 +2311,7 @@ export default function OrderDetailPage() {
                 <div className="card-header-icon-box slate">
                   <Receipt size={16} />
                 </div>
-                <h3 className="order-card-header-title">Phí và tiền thu hộ</h3>
+                <h3 className="order-card-header-title">Giá trị, COD và đối soát</h3>
               </div>
               <div className="order-card-body">
                 <div className="fee-breakdown-table">
@@ -2122,97 +2319,62 @@ export default function OrderDetailPage() {
                     <span className="fee-item-label">
                       Trị giá hàng <Info size={12} className="fee-info-icon" />
                     </span>
-                    <span className="fee-item-val-bold">{money(order.value || 100000)}</span>
+                    <span className="fee-item-val-bold">{money(order.value)}</span>
                   </div>
 
                   <div className="fee-item-row">
                     <span className="fee-item-label">Khối lượng</span>
-                    <span className="fee-item-val-bold">{order.weight || 334} gr</span>
+                    <span className="fee-item-val-bold">{order.weight} gr</span>
                   </div>
 
                   <div className="fee-item-divider" />
 
                   <div className="fee-item-row">
-                    <span className="fee-item-label">Phí giao hàng (Cấn trừ COD)</span>
-                    <span className="fee-item-val-red">14.000 đ</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Phí bảo hiểm</span>
-                    <span className="fee-item-val-red">0 đ</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Phí trả hàng</span>
-                    <span className="fee-item-val-red">0 đ</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Phí hàng đổi</span>
-                    <span className="fee-item-val-red">0 đ</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Phí đổi địa chỉ</span>
-                    <span className="fee-item-val-red">0 đ</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Phí thu hộ</span>
-                    <span className="fee-item-val-red">0 đ</span>
-                  </div>
-
-                  <div className="fee-item-divider" />
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">
-                      Tổng phí vận chuyển <Info size={12} className="fee-info-icon" />
-                    </span>
-                    <span className="fee-item-val-red">14.000 đ</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Tiền thu hộ</span>
+                    <span className="fee-item-label">Tiền COD cần thu</span>
                     <span className="fee-item-val-bold">{money(order.cod)}</span>
                   </div>
 
                   <div className="fee-item-row">
-                    <span className="fee-item-label">Tiền thu người nhận</span>
-                    <span className="fee-item-val-green">0 đ</span>
+                    <span className="fee-item-label">Đã thực thu từ người nhận</span>
+                    <span className="fee-item-val-green">{money(order.collectedAmount ?? 0)}</span>
                   </div>
 
-                  {isInternal && permission('view_carrier_cost').allowed && (
-                    <>
-                      <div className="fee-item-divider" />
-                      <div className="internal-carrier-cost-heading">
-                        <ShieldCheck size={14} />
-                        <span>GIÁ VỐN NVC · CHỈ NỘI BỘ</span>
-                      </div>
-                      <div className="fee-item-row internal-cost-row">
-                        <span className="fee-item-label">Giá bán cho Shop</span>
-                        <span className="fee-item-val-bold">
-                          {money(order.serviceType === 'instant' ? 45000 : 14000)}
-                        </span>
-                      </div>
-                      <div className="fee-item-row internal-cost-row">
-                        <span className="fee-item-label">
-                          Giá vốn {order.shippingInfo?.deliveryCarrier || 'NVC'}
-                        </span>
-                        <span className="fee-item-val-internal">
-                          {money(order.serviceType === 'instant' ? 36000 : 10500)}
-                        </span>
-                      </div>
-                      <div className="fee-item-row internal-margin-row">
-                        <span className="fee-item-label">Biên gộp dự kiến</span>
-                        <span className="fee-item-val-green">
-                          {money(order.serviceType === 'instant' ? 9000 : 3500)}
-                        </span>
-                      </div>
-                      <div className="internal-price-account-note">
-                        Tài khoản giá: {order.priceAccountType === 'private' ? 'Riêng' : 'Dùng chung'}
-                      </div>
-                    </>
-                  )}
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Trạng thái thu COD</span>
+                    <span className="fee-item-val-bold">
+                      {COD_COLLECTION_LABELS[order.codCollectionStatus ?? 1]}
+                    </span>
+                  </div>
+
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Đã đối soát cho Shop</span>
+                    <span className="fee-item-val-green">{money(order.settledAmount ?? 0)}</span>
+                  </div>
+
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Trạng thái đối soát COD</span>
+                    <span className="fee-item-val-bold">
+                      {COD_SETTLEMENT_LABELS[order.codSettlementStatus ?? 1]}
+                    </span>
+                  </div>
+
+                  <div className="fee-item-divider" />
+
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Tiền bồi thường được phê duyệt</span>
+                    <span className="fee-item-val-green">
+                      {money(order.compensationAmount ?? 0)}
+                    </span>
+                  </div>
+
+                  <div className="fee-item-row">
+                    <span className="fee-item-label">Trạng thái bồi thường</span>
+                    <span className="fee-item-val-bold">
+                      {typeof order.compensationStatus === 'number'
+                        ? COMPENSATION_LABELS[order.compensationStatus]
+                        : order.compensationStatus || 'Không phát sinh'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2283,7 +2445,6 @@ export default function OrderDetailPage() {
             </div>
           </div>
         </div>
-
       </div>
 
       {isInternal ? (
@@ -2342,7 +2503,6 @@ export default function OrderDetailPage() {
               <span>IN NHÃN</span>
             </button>
           )}
-
         </div>
       ) : (
         <div className="detail-bottom-toolbar">
@@ -2367,7 +2527,11 @@ export default function OrderDetailPage() {
           )}
 
           {permission('retry_create_waybill').allowed && (
-            <button type="button" className="btn-toolbar-red-primary" onClick={() => openOperation('retry-create')}>
+            <button
+              type="button"
+              className="btn-toolbar-red-primary"
+              onClick={() => openOperation('retry-create')}
+            >
               <RotateCcw size={16} />
               <span>THỬ TẠO LẠI VẬN ĐƠN</span>
             </button>
@@ -2392,7 +2556,12 @@ export default function OrderDetailPage() {
             <button
               type="button"
               className="btn-toolbar-red-outline"
-              onClick={() => openSupportRequest('Giao Hàng', `Yêu cầu bàn giao lại đơn ${order.id} cho NVC giao.`)}
+              onClick={() =>
+                openSupportRequest(
+                  'Giao Hàng',
+                  `Yêu cầu bàn giao lại đơn ${order.id} cho NVC giao.`,
+                )
+              }
             >
               <RotateCcw size={16} />
               <span>YÊU CẦU BÀN GIAO LẠI</span>
@@ -2415,20 +2584,47 @@ export default function OrderDetailPage() {
           )}
 
           {permission('request_return_pickup_retry').allowed && (
-            <button type="button" className="btn-toolbar-red-outline" onClick={() => openSupportRequest('Lấy Hàng Hoàn', `Yêu cầu lấy lại hàng hoàn cho đơn ${order.id}.`)}>
-              <RotateCcw size={15} /><span>YÊU CẦU LẤY LẠI HÀNG HOÀN</span>
+            <button
+              type="button"
+              className="btn-toolbar-red-outline"
+              onClick={() =>
+                openSupportRequest(
+                  'Lấy Hàng Hoàn',
+                  `Yêu cầu lấy lại hàng hoàn cho đơn ${order.id}.`,
+                )
+              }
+            >
+              <RotateCcw size={15} />
+              <span>YÊU CẦU LẤY LẠI HÀNG HOÀN</span>
             </button>
           )}
 
           {permission('request_return_handover_retry').allowed && (
-            <button type="button" className="btn-toolbar-red-outline" onClick={() => openSupportRequest('Bàn Giao Hàng Hoàn', `Yêu cầu bàn giao lại hàng hoàn cuối cho đơn ${order.id}.`)}>
-              <RotateCcw size={15} /><span>BÀN GIAO LẠI HÀNG HOÀN</span>
+            <button
+              type="button"
+              className="btn-toolbar-red-outline"
+              onClick={() =>
+                openSupportRequest(
+                  'Bàn Giao Hàng Hoàn',
+                  `Yêu cầu bàn giao lại hàng hoàn cuối cho đơn ${order.id}.`,
+                )
+              }
+            >
+              <RotateCcw size={15} />
+              <span>BÀN GIAO LẠI HÀNG HOÀN</span>
             </button>
           )}
 
           {permission('request_final_return_retry').allowed && (
-            <button type="button" className="btn-toolbar-red-outline" onClick={() => openSupportRequest('Trả Hàng Cuối', `Yêu cầu trả lại hàng cho đơn ${order.id}.`)}>
-              <RotateCcw size={15} /><span>YÊU CẦU TRẢ LẠI</span>
+            <button
+              type="button"
+              className="btn-toolbar-red-outline"
+              onClick={() =>
+                openSupportRequest('Trả Hàng Cuối', `Yêu cầu trả lại hàng cho đơn ${order.id}.`)
+              }
+            >
+              <RotateCcw size={15} />
+              <span>YÊU CẦU TRẢ LẠI</span>
             </button>
           )}
 
@@ -2439,7 +2635,10 @@ export default function OrderDetailPage() {
               onClick={() => {
                 const decision = permission('edit_cod');
                 if (decision.mode === 'request_support') {
-                  openSupportRequest('Đơn Hàng', `Yêu cầu sửa COD cho đơn ${order.id}. ${decision.reason || ''}`.trim());
+                  openSupportRequest(
+                    'Đơn Hàng',
+                    `Yêu cầu sửa COD cho đơn ${order.id}. ${decision.reason || ''}`.trim(),
+                  );
                   return;
                 }
                 setEditCodValue(String(order.cod));
@@ -2449,7 +2648,9 @@ export default function OrderDetailPage() {
               }}
             >
               <DollarSign size={15} />
-              <span>{permission('edit_cod').mode === 'request_support' ? 'YÊU CẦU SỬA COD' : 'SỬA COD'}</span>
+              <span>
+                {permission('edit_cod').mode === 'request_support' ? 'YÊU CẦU SỬA COD' : 'SỬA COD'}
+              </span>
             </button>
           )}
 
@@ -2467,7 +2668,11 @@ export default function OrderDetailPage() {
               }}
             >
               <X size={15} />
-              <span>{permission('cancel_order').mode === 'request_support' ? 'YÊU CẦU HỦY ĐƠN' : 'HỦY ĐƠN'}</span>
+              <span>
+                {permission('cancel_order').mode === 'request_support'
+                  ? 'YÊU CẦU HỦY ĐƠN'
+                  : 'HỦY ĐƠN'}
+              </span>
             </button>
           )}
 
@@ -2482,24 +2687,37 @@ export default function OrderDetailPage() {
               }
             >
               <Pencil size={15} />
-              <span>{permission('edit_order').mode === 'request_support' ? 'YÊU CẦU SỬA THÔNG TIN' : 'THAY ĐỔI THÔNG TIN'}</span>
+              <span>
+                {permission('edit_order').mode === 'request_support'
+                  ? 'YÊU CẦU SỬA THÔNG TIN'
+                  : 'THAY ĐỔI THÔNG TIN'}
+              </span>
             </button>
           )}
 
           {permission('edit_return_address').allowed &&
             permission('edit_return_address').mode !== 'new_waybill' && (
+              <button
+                type="button"
+                className="btn-toolbar-muted"
+                onClick={() =>
+                  openSupportRequest(
+                    'Chuyển Hoàn',
+                    `Yêu cầu đổi địa chỉ trả hàng cho đơn ${order.id}. ${permission('edit_return_address').reason || ''}`.trim(),
+                  )
+                }
+              >
+                <MapPin size={15} />
+                <span>ĐỔI ĐỊA CHỈ TRẢ</span>
+              </button>
+            )}
+
+          {permission('add_goods_images').allowed && (
             <button
               type="button"
               className="btn-toolbar-muted"
-              onClick={() => openSupportRequest('Chuyển Hoàn', `Yêu cầu đổi địa chỉ trả hàng cho đơn ${order.id}. ${permission('edit_return_address').reason || ''}`.trim())}
+              onClick={() => openOperation('images')}
             >
-              <MapPin size={15} />
-              <span>ĐỔI ĐỊA CHỈ TRẢ</span>
-            </button>
-          )}
-
-          {permission('add_goods_images').allowed && (
-            <button type="button" className="btn-toolbar-muted" onClick={() => openOperation('images')}>
               <ImagePlus size={15} />
               <span>THÊM ẢNH HÀNG</span>
             </button>
@@ -2562,7 +2780,9 @@ export default function OrderDetailPage() {
           }
         >
           <div className="order-operation-content">
-            <p>Bạn có chắc chắn muốn hủy đơn hàng <b>{order.id}</b>?</p>
+            <p>
+              Bạn có chắc chắn muốn hủy đơn hàng <b>{order.id}</b>?
+            </p>
             {operationError && <div className="operation-inline-error">{operationError}</div>}
           </div>
         </Modal>
@@ -2646,7 +2866,9 @@ export default function OrderDetailPage() {
             }}
           >
             <div className="edit-cod-order-summary">
-              <span className="edit-cod-order-icon"><QrCode size={20} /></span>
+              <span className="edit-cod-order-icon">
+                <QrCode size={20} />
+              </span>
               <div>
                 <small>Mã Order</small>
                 <strong>{order.id}</strong>
@@ -2657,7 +2879,9 @@ export default function OrderDetailPage() {
             </div>
 
             <label className="edit-cod-field">
-              <span>Tiền thu hộ mới <b>*</b></span>
+              <span>
+                Tiền thu hộ mới <b>*</b>
+              </span>
               <div className="edit-cod-input-wrap">
                 <input
                   name="cod"
@@ -2682,9 +2906,7 @@ export default function OrderDetailPage() {
                 )}
                 <span className="edit-cod-currency">₫</span>
               </div>
-              <small id="edit-cod-hint">
-                Số tiền từ 0 ₫ đến 100.000.000 ₫
-              </small>
+              <small id="edit-cod-hint">Số tiền từ 0 ₫ đến 100.000.000 ₫</small>
             </label>
 
             <label className="edit-cod-partial-option">
@@ -2704,12 +2926,14 @@ export default function OrderDetailPage() {
                 <div className="edit-cod-notice">
                   <Info size={18} />
                   <p>
-                    Khi yêu cầu tạo mã thu hồi, vui lòng điền đầy đủ <b>tên sản phẩm thu hồi,
-                    trị giá, số lượng và khối lượng</b> tại phần ghi chú.
+                    Khi yêu cầu tạo mã thu hồi, vui lòng điền đầy đủ{' '}
+                    <b>tên sản phẩm thu hồi, trị giá, số lượng và khối lượng</b> tại phần ghi chú.
                   </p>
                 </div>
                 <label className="edit-cod-note">
-                  <span>Ghi chú <b>*</b></span>
+                  <span>
+                    Ghi chú <b>*</b>
+                  </span>
                   <textarea
                     maxLength={120}
                     value={editCodNote}
@@ -2750,7 +2974,9 @@ export default function OrderDetailPage() {
           onClose={() => !isSubmitting && setOperationModal(null)}
           footer={
             <>
-              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>Quay lại</Button>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>
+                Quay lại
+              </Button>
               <Button
                 variant="primary"
                 disabled={isSubmitting}
@@ -2770,7 +2996,9 @@ export default function OrderDetailPage() {
             <AlertTriangle size={18} />
             <div>
               <strong>Hệ thống sẽ gửi lại dữ liệu sang NVC</strong>
-              <span>Chỉ thực hiện khi thông tin đơn đã được kiểm tra và lỗi trước đó có thể thử lại.</span>
+              <span>
+                Chỉ thực hiện khi thông tin đơn đã được kiểm tra và lỗi trước đó có thể thử lại.
+              </span>
             </div>
           </div>
           {operationError && <div className="operation-inline-error">{operationError}</div>}
@@ -2783,7 +3011,9 @@ export default function OrderDetailPage() {
           onClose={() => !isSubmitting && setOperationModal(null)}
           footer={
             <>
-              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>Quay lại</Button>
+              <Button disabled={isSubmitting} onClick={() => setOperationModal(null)}>
+                Quay lại
+              </Button>
               <Button
                 variant="primary"
                 disabled={isSubmitting}
@@ -2839,7 +3069,9 @@ export default function OrderDetailPage() {
               <AlertTriangle size={18} />
               <div>
                 <strong>NVC sẽ thực hiện thêm một lượt giao</strong>
-                <span>Hãy chắc chắn người nhận có thể nhận hàng và số điện thoại còn liên lạc được.</span>
+                <span>
+                  Hãy chắc chắn người nhận có thể nhận hàng và số điện thoại còn liên lạc được.
+                </span>
               </div>
             </div>
             {isSubmitting && <AsyncStatePanel state="processing" compact />}
@@ -2946,7 +3178,9 @@ export default function OrderDetailPage() {
               <AlertTriangle size={18} />
               <div>
                 <strong>Mã vận đơn cũ có thể không còn hiệu lực</strong>
-                <span>Phí và thời gian giao dự kiến sẽ được tính lại sau khi NVC mới tiếp nhận.</span>
+                <span>
+                  Phí và thời gian giao dự kiến sẽ được tính lại sau khi NVC mới tiếp nhận.
+                </span>
               </div>
             </div>
             {isSubmitting && <AsyncStatePanel state="processing" compact />}
@@ -2969,7 +3203,8 @@ export default function OrderDetailPage() {
                 disabled={isSubmitting || pendingImages.length === 0}
                 onClick={() =>
                   submitOperation(
-                    () => applyOperation(order.id, { type: 'add-goods-images', images: pendingImages }),
+                    () =>
+                      applyOperation(order.id, { type: 'add-goods-images', images: pendingImages }),
                     `Đã thêm ${pendingImages.length} ảnh hàng hóa.`,
                   )
                 }
@@ -3001,7 +3236,9 @@ export default function OrderDetailPage() {
                       type="button"
                       aria-label={`Xóa ${image.fileName}`}
                       onClick={() =>
-                        setPendingImages((current) => current.filter((item) => item.id !== image.id))
+                        setPendingImages((current) =>
+                          current.filter((item) => item.id !== image.id),
+                        )
                       }
                     >
                       <X size={13} />

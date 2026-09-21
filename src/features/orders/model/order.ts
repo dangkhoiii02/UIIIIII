@@ -336,7 +336,12 @@ export function filterOrders(orders: Order[], filters: OrderFilters, now = new D
     if (filters.incidentType && order.incidentType !== filters.incidentType) return false;
     if (filters.hasClaim && !order.claimStatus) return false;
     if (filters.claimStatus && order.claimStatus !== filters.claimStatus) return false;
-    if (filters.hasCompensation && !order.compensationStatus) return false;
+    const hasCompensation =
+      (order.compensationAmount ?? 0) > 0 ||
+      (typeof order.compensationStatus === 'number'
+        ? order.compensationStatus > 1
+        : Boolean(order.compensationStatus));
+    if (filters.hasCompensation && !hasCompensation) return false;
     if (filters.syncError && order.syncStatus !== 'FAILED') return false;
     if (filters.priceAccountType && order.priceAccountType !== filters.priceAccountType)
       return false;

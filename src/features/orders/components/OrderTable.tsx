@@ -27,15 +27,9 @@ import { Button } from '@/shared/ui/Button';
 import type { Order, ShippingRoutingInfo, ShippingStageItem } from '../model/types';
 import { getSpfStatusTone } from '../model/spf-status-catalog';
 import { getOrderPermission, type OrderCapability } from '../model/order-permissions';
+import { formatInstantEta } from '../model/instant-tracking';
 
-export type OrderAction =
-  | 'detail'
-  | 'carrier'
-  | 'support'
-  | 'copy'
-  | 'edit'
-  | 'print'
-  | 'cancel';
+export type OrderAction = 'detail' | 'carrier' | 'support' | 'copy' | 'edit' | 'print' | 'cancel';
 
 // Exported for the status-label unit test; this file otherwise renders the order table.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -214,71 +208,24 @@ function getShippingStages(
     ...stage,
     isSuperShip: stage.carrier.toLocaleLowerCase('vi').includes('super'),
     title:
-      stage.key === 'pickup'
+      stage.title ||
+      (stage.key === 'pickup'
         ? 'Lấy'
         : stage.key === 'delivery'
           ? 'Giao'
           : stage.key === 'return'
             ? 'Hoàn'
-            : 'Trả cuối',
+            : 'Trả cuối'),
   });
   if (!shipping) {
-    return [
-      {
-        key: 'pickup',
-        title: 'Lấy',
-        carrier: 'SuperShip',
-        tracking: 'STGS983262LM.826941741',
-        isSuperShip: true,
-        status: 'completed',
-      },
-      {
-        key: 'delivery',
-        title: 'Giao',
-        carrier: 'GHN',
-        tracking: 'GY8YLSDK',
-        isSuperShip: false,
-        status: 'active',
-      },
-    ];
+    return [];
   }
 
-  // Nếu đã có cấu hình stages cụ thể
-  if (shipping.stages && shipping.stages.length > 0) {
-    const stages = shipping.stages;
-    const pickupStage = stages.find((stage) => stage.key === 'pickup') || {
-      key: 'pickup' as const,
-      title: 'Lấy',
-      carrier: shipping.pickupCarrier || 'SuperShip',
-      tracking: shipping.pickupTracking || '',
-      isSuperShip: true,
-      status: shipping.currentStage === 'pickup' ? ('active' as const) : ('completed' as const),
-      carrierStatusText:
-        shipping.currentStage === 'pickup' ? 'Đang xử lý chặng lấy' : 'Đã kết thúc chặng lấy',
-    };
-    const deliveryStage = stages.find((stage) => stage.key === 'delivery') || {
-      key: 'delivery' as const,
-      title: 'Giao',
-      carrier: shipping.deliveryCarrier || 'Chưa xác định NVC giao',
-      tracking: shipping.deliveryTracking || '',
-      status:
-        shipping.currentStage === 'pickup'
-          ? ('pending' as const)
-          : shipping.currentStage === 'completed'
-            ? ('completed' as const)
-            : ('active' as const),
-      carrierStatusText:
-        shipping.currentStage === 'pickup' ? 'Chưa đến chặng giao' : shipping.carrierStatusText,
-    };
-    const normalized: ShippingStageItem[] = [
-      normalizeStage(pickupStage),
-      normalizeStage(deliveryStage),
-    ];
-    const returnStage = stages.find((stage) => stage.key === 'return');
-    const finalReturnStage = stages.find((stage) => stage.key === 'refund');
-    if (returnStage) normalized.push(normalizeStage(returnStage));
-    if (includeFinalReturn && finalReturnStage) normalized.push(normalizeStage(finalReturnStage));
-    return normalized;
+  // Khi mock API đã trả danh sách chặng thì chỉ hiển thị đúng các chặng có trong database.
+  if (shipping.stages) {
+    return shipping.stages
+      .filter((stage) => includeFinalReturn || stage.key !== 'refund')
+      .map(normalizeStage);
   }
 
   // Nếu đơn có luồng chuyển hoàn -> đúng 3 chặng chuẩn: Lấy -> Giao -> Hoàn
@@ -309,8 +256,7 @@ function getShippingStages(
         key: 'return',
         title: 'Hoàn',
         carrier: shipping.returnCarrier || shipping.refundCarrier || 'SuperShip',
-        tracking:
-          shipping.returnTracking || shipping.refundTracking || 'STGS983262LM.826941743',
+        tracking: shipping.returnTracking || shipping.refundTracking || 'STGS983262LM.826941743',
         isSuperShip: true,
         status: isCompleted ? 'completed' : isReturnLegActive ? 'active' : 'pending',
       },
@@ -343,24 +289,27 @@ function getShippingStages(
   ];
 }
 
-function getTrackingSlots(stages: ShippingStageItem[]) {
-  return [
-    {
-      key: 'delivery',
-      label: 'Mã Giao',
-      stage: stages.find((stage) => stage.key === 'delivery'),
-    },
-    {
+// eslint-disable-next-line react-refresh/only-export-components
+export function getTrackingSlots(stages: ShippingStageItem[]) {
+  const pickup = stages.find((stage) => stage.key === 'pickup');
+  const delivery = stages.find((stage) => stage.key === 'delivery');
+  const returnStage = stages.find((stage) => stage.key === 'return' || stage.key === 'refund');
+
+  const slots: { key: string; label: string; stage?: ShippingStageItem }[] = [];
+  if (pickup?.tracking) {
+    slots.push({
       key: 'pickup',
-      label: 'Mã Lấy',
-      stage: stages.find((stage) => stage.key === 'pickup'),
-    },
-    {
-      key: 'return',
-      label: 'Mã Hoàn',
-      stage: stages.find((stage) => stage.key === 'return' || stage.key === 'refund'),
-    },
-  ].filter(({ stage }) => Boolean(stage?.tracking));
+      label: pickup.title === 'Gửi hàng' ? 'Mã Gửi' : 'Mã Lấy',
+      stage: pickup,
+    });
+  }
+  if (delivery?.tracking) {
+    slots.push({ key: 'delivery', label: 'Mã Giao', stage: delivery });
+  }
+  if (returnStage?.tracking) {
+    slots.push({ key: 'return', label: 'Mã Hoàn', stage: returnStage });
+  }
+  return slots.filter(({ stage }) => Boolean(stage?.tracking));
 }
 
 const shopActions = [
@@ -415,21 +364,32 @@ function maskPhone(phone: string): string {
 
 export function OrderTable({
   orders,
+  totalCount,
+  currentPage,
+  pageSize,
   selected,
   onSelect,
   onAction,
+  onPageChange,
   isInternal = false,
 }: {
   orders: Order[];
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
   selected: string[];
   onSelect: (ids: string[]) => void;
   onAction: (action: OrderAction, order: Order) => void;
+  onPageChange: (page: number) => void;
   isInternal?: boolean;
 }) {
   const notify = useToast();
   const [visiblePhones, setVisiblePhones] = useState<Record<string, boolean>>({});
   const [journeyModalOrder, setJourneyModalOrder] = useState<Order | null>(null);
   const rowActions = isInternal ? internalActions : shopActions;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const rangeStart = totalCount ? (currentPage - 1) * pageSize + 1 : 0;
+  const rangeEnd = totalCount ? Math.min(currentPage * pageSize, totalCount) : 0;
 
   const handleCopy = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -469,7 +429,9 @@ export function OrderTable({
                   }
                 />
               </th>
-              <th style={{ width: isInternal ? 160 : '12%', minWidth: isInternal ? 160 : undefined }}>
+              <th
+                style={{ width: isInternal ? 160 : '12%', minWidth: isInternal ? 160 : undefined }}
+              >
                 Mã Đơn Hàng
               </th>
               {isInternal ? (
@@ -480,12 +442,14 @@ export function OrderTable({
               ) : (
                 <th style={{ width: '17%' }}>Khách Hàng</th>
               )}
-              <th style={{ width: isInternal ? 180 : '13%', minWidth: isInternal ? 180 : undefined }}>
+              <th
+                style={{ width: isInternal ? 180 : '13%', minWidth: isInternal ? 180 : undefined }}
+              >
                 Thông Tin Đơn Hàng
               </th>
               <th
                 className="col-shipping"
-                style={{ width: isInternal ? 400 : '15%', minWidth: isInternal ? 400 : undefined }}
+                style={{ width: isInternal ? 270 : '15%', minWidth: isInternal ? 270 : undefined }}
               >
                 {isInternal ? 'NVC & trạng thái từng chặng' : 'Thông Tin Vận Chuyển'}
               </th>
@@ -495,7 +459,10 @@ export function OrderTable({
               >
                 Tiền Thu Khách
               </th>
-              <th style={{ width: isInternal ? 120 : '7.5%', minWidth: isInternal ? 120 : undefined }}>
+              <th
+                className="order-value-column"
+                style={{ width: isInternal ? 120 : '7.5%', minWidth: isInternal ? 120 : undefined }}
+              >
                 Trị Giá Hàng
               </th>
               <th
@@ -515,12 +482,8 @@ export function OrderTable({
           <tbody>
             {orders.map((order) => {
               const shipping = order.shippingInfo || {
-                pickupCarrier: 'SuperShip',
-                pickupTracking: 'STGS983262LM.826941741',
-                deliveryCarrier: 'GHN',
-                deliveryTracking: 'GY8YLSDK',
-                carrierStatusText: 'GHN – Đang lấy hàng',
-                currentStage: 'pickup',
+                carrierStatusText: order.status,
+                stages: [],
               };
 
               const isPhoneRevealed = !!visiblePhones[order.id];
@@ -573,7 +536,9 @@ export function OrderTable({
                           <span className="shop-name-bold">{order.shopName || 'AB Shop'}</span>
                         </div>
                         <div className="cell-item-row">
-                          <span className="shop-code-pill">{order.shopId || order.clientCode || 'S275518'}</span>
+                          <span className="shop-code-pill">
+                            {order.shopId || order.clientCode || 'S275518'}
+                          </span>
                         </div>
                         {order.shopPhone && (
                           <div className="cell-item-row shop-phone-sub">
@@ -635,7 +600,9 @@ export function OrderTable({
 
                       <div className="cell-item-row">
                         <Scale size={14} className="cell-icon-slate" />
-                        <span className="product-weight-text">{order.weight} gr</span>
+                        <span className="product-weight-text">
+                          {order.weight > 0 ? `${order.weight} gr` : 'Chưa có khối lượng'}
+                        </span>
                       </div>
                     </div>
                   </td>
@@ -650,16 +617,20 @@ export function OrderTable({
 
                       if (order.serviceType === 'instant' && order.instantTracking && !isInternal) {
                         const tracking = order.instantTracking;
+                        const etaText = formatInstantEta(tracking.etaMinutes);
                         const carrier =
                           order.selectedCarrier || shipping.deliveryCarrier || 'Nhà vận chuyển';
                         const tripCode =
                           shipping.deliveryTracking || shipping.pickupTracking || 'Chưa có mã đơn';
                         const isSearching = tracking.state === 'CREATED';
+                        const isDriverNotFound = tracking.state === 'DRIVER_NOT_FOUND';
                         const isGoingToPickup =
                           tracking.state === 'DRIVER_ASSIGNED' ||
                           tracking.state === 'DRIVER_TO_PICKUP';
                         const isDelivered = tracking.state === 'DELIVERED';
-                        const statusLabel = isSearching
+                        const statusLabel = isDriverNotFound
+                          ? 'Không tìm được tài xế'
+                          : isSearching
                           ? 'Đang tìm tài xế'
                           : isGoingToPickup
                             ? 'Đang đến lấy'
@@ -670,7 +641,9 @@ export function OrderTable({
                                 : 'Đang giao';
                         const instantStatusTone = isDelivered
                           ? 'status-tag-green'
-                          : isSearching || isGoingToPickup
+                          : isDriverNotFound
+                            ? 'status-tag-rose'
+                            : isSearching || isGoingToPickup
                             ? 'status-tag-rose'
                             : 'status-tag-blue';
                         const isPickupCompleted =
@@ -684,7 +657,9 @@ export function OrderTable({
                           tracking.state === 'ARRIVING';
                         const pickupLegStatus = isPickupCompleted
                           ? 'Đã lấy'
-                          : isSearching
+                          : isDriverNotFound
+                            ? 'Không có tài xế'
+                            : isSearching
                             ? 'Chờ tài xế'
                             : 'Đang đến lấy';
                         const deliveryLegStatus = isDelivered
@@ -734,7 +709,10 @@ export function OrderTable({
                               </div>
                             </div>
 
-                            <div className="shipping-tracking-list" aria-label="Mã đơn nhà vận chuyển">
+                            <div
+                              className="shipping-tracking-list"
+                              aria-label="Mã đơn nhà vận chuyển"
+                            >
                               <button
                                 type="button"
                                 className="shipping-tracking-row tracking-delivery"
@@ -750,7 +728,9 @@ export function OrderTable({
 
                             <div className="instant-order-delivery-unit">
                               <div className="shipping-status-container">
-                                <div className={`shipping-current-status-badge ${instantStatusTone}`}>
+                                <div
+                                  className={`shipping-current-status-badge ${instantStatusTone}`}
+                                >
                                   <Zap size={12} className="status-badge-icon" />
                                   <span>{statusLabel}</span>
                                 </div>
@@ -760,9 +740,35 @@ export function OrderTable({
                                   ? 'Chưa phân tài xế'
                                   : isDelivered
                                     ? `${order.shipperDeliveryName || 'Tài xế'} · Hoàn tất ${formatCarrierUpdatedAt(tracking.updatedAt)}`
-                                    : `${order.shipperDeliveryName || 'Đã phân tài xế'} · ETA ${tracking.etaMinutes || '—'} phút`}
+                                    : etaText
+                                      ? `${order.shipperDeliveryName || 'Đã phân tài xế'} · ETA ${etaText}`
+                                      : order.shipperDeliveryName || 'Đã phân tài xế'}
                               </span>
                             </div>
+                          </div>
+                        );
+                      }
+
+                      if (!visualStages.length) {
+                        const plannedCarrier =
+                          order.selectedCarrier ||
+                          shipping.deliveryCarrier ||
+                          shipping.pickupCarrier ||
+                          'Chưa xác định NVC';
+                        return (
+                          <div className="carrier-planning-card">
+                            <span className="carrier-planning-logo">
+                              {renderCarrierLogo(plannedCarrier)}
+                            </span>
+                            <span className="carrier-planning-copy">
+                              <strong>{plannedCarrier}</strong>
+                              <small>Chưa được cấp mã vận đơn</small>
+                            </span>
+                            <span className="carrier-planning-status">
+                              {renderCarrierStatusBadge(
+                                shipping.carrierStatusText || order.status,
+                              )}
+                            </span>
                           </div>
                         );
                       }
@@ -794,14 +800,7 @@ export function OrderTable({
                                   <span className="internal-stage-carrier-copy">
                                     <strong>{stage.carrier}</strong>
                                     <code>{stage.tracking || 'Chưa có mã vận đơn'}</code>
-                                  </span>
-                                  <span className="internal-stage-status-copy">
-                                    <strong>{carrierStatus}</strong>
-                                    {stage.carrierUpdatedAt && (
-                                      <small>
-                                        Cập nhật {formatCarrierUpdatedAt(stage.carrierUpdatedAt)}
-                                      </small>
-                                    )}
+                                    <small>{carrierStatus}</small>
                                   </span>
                                 </button>
                               );
@@ -812,37 +811,36 @@ export function OrderTable({
 
                       return (
                         <div className="table-shipping-info-cell step-logo-flow-mode">
-                          {/* Chuỗi Step -> Step logo */}
-                          <div className="step-logo-track">
-                            {visualStages.map((st, idx) => {
-                              const isLast = idx === visualStages.length - 1;
-                              const isDone = st.status === 'completed';
-                              const isActive = st.status === 'active';
+                          <div className="step-logo-track" aria-label="Luồng nhà vận chuyển">
+                            {visualStages.map((stage, index) => {
+                              const isLast = index === visualStages.length - 1;
+                              const isDone = stage.status === 'completed';
+                              const isActive = stage.status === 'active';
                               const isNextPending =
-                                !isLast && visualStages[idx + 1]?.status === 'pending';
-
+                                !isLast && visualStages[index + 1]?.status === 'pending';
                               return (
-                                <div key={st.key} className="step-node-item">
-                                  {/* Logo của chặng */}
+                                <div
+                                  key={stage.key}
+                                  className="step-node-item"
+                                >
                                   <div
-                                    className={`step-logo-circle ${st.status || 'pending'} ${
+                                    className={`step-logo-circle ${stage.status || 'pending'} ${
                                       isActive ? 'active-pulse' : ''
                                     }`}
-                                    onClick={(e) =>
+                                    onClick={(event) =>
                                       handleCopyTracking(
-                                        st.tracking,
-                                        `${st.title} - ${st.carrier}`,
-                                        e,
+                                        stage.tracking,
+                                        `${stage.title} - ${stage.carrier}`,
+                                        event,
                                       )
                                     }
-                                    title={`${st.title}: ${st.carrier} (${st.tracking})\nNhấp để sao chép mã vận đơn`}
+                                    title={`${stage.title}: ${stage.carrier} (${stage.tracking})\nNhấp để sao chép mã vận đơn`}
                                   >
-                                    {renderCarrierLogo(st.carrier, st.isSuperShip)}
+                                    {renderCarrierLogo(stage.carrier, stage.isSuperShip)}
                                   </div>
 
-                                  {/* Mũi tên kết nối sang chặng tiếp theo: Step -> Step */}
                                   {!isLast && (
-                                    <div
+                                    <span
                                       className={`step-arrow-connector ${
                                         isDone
                                           ? 'done'
@@ -852,6 +850,7 @@ export function OrderTable({
                                               ? 'pending'
                                               : ''
                                       }`}
+                                      aria-hidden="true"
                                     >
                                       <span className="step-arrow-line" />
                                       <svg
@@ -869,7 +868,7 @@ export function OrderTable({
                                           strokeLinejoin="round"
                                         />
                                       </svg>
-                                    </div>
+                                    </span>
                                   )}
                                 </div>
                               );
@@ -882,13 +881,13 @@ export function OrderTable({
                                 type="button"
                                 key={key}
                                 className={`shipping-tracking-row tracking-${key}`}
-                                onClick={(event) => {
+                                onClick={(event) =>
                                   handleCopyTracking(
                                     stage!.tracking,
                                     `${label} - ${stage!.carrier}`,
                                     event,
-                                  );
-                                }}
+                                  )
+                                }
                                 title={`${label} · ${stage!.carrier}: ${stage!.tracking}\nNhấp để sao chép`}
                               >
                                 <span>{label}:</span>
@@ -904,8 +903,7 @@ export function OrderTable({
                             title="Nhấp để xem chi tiết toàn bộ hành trình"
                           >
                             {renderCarrierStatusBadge(
-                              shipping.carrierStatusText ||
-                                `${shipping.deliveryCarrier || 'GHN'} – Đang lấy hàng`,
+                              shipping.carrierStatusText || order.status,
                             )}
                           </div>
                         </div>
@@ -914,21 +912,25 @@ export function OrderTable({
                   </td>
 
                   {/* Cột 5: Tiền Thu Khách */}
-                  <td className="red" style={{ fontWeight: 700, fontSize: 13.5, paddingTop: 16 }}>
+                  <td
+                    className="red customer-collection-column"
+                    style={{ fontWeight: 700, fontSize: 13.5, paddingTop: 16 }}
+                  >
                     {money(order.cod)}
                   </td>
 
                   {/* Cột 6: Trị Giá Hàng */}
-                  <td className="green" style={{ fontWeight: 700, fontSize: 13.5, paddingTop: 16 }}>
+                  <td
+                    className="green order-value-column"
+                    style={{ fontWeight: 700, fontSize: 13.5, paddingTop: 16 }}
+                  >
                     {money(order.value)}
                   </td>
 
                   {/* Cột 7: Trạng Thái Đơn Hàng */}
                   <td className="order-status-column" style={{ paddingTop: 14 }}>
                     <div className="order-status-stack">
-                      <span
-                        className={`status status-${getSpfStatusTone(order.spfCode)}`}
-                      >
+                      <span className={`status status-${getSpfStatusTone(order.spfCode)}`}>
                         {order.status}
                       </span>
                     </div>
@@ -940,11 +942,11 @@ export function OrderTable({
                       {rowActions.map(({ key, title, Icon }) => {
                         if (isInternal && key === 'support' && !order.supportStatus) return null;
                         const capability = ACTION_CAPABILITY[key];
-                          const decision = capability
+                        const decision = capability
                           ? getOrderPermission(
                               isInternal
                                 ? { kind: 'internal' }
-                                : { kind: 'shop', shopId: 'S275518' },
+                                : { kind: 'shop', shopId: order.shopId || 'S275518' },
                               order,
                               capability,
                             )
@@ -980,9 +982,27 @@ export function OrderTable({
       </div>
       <div className="pagination">
         <span>
-          Đang hiển thị {orders.length ? '1 - ' + orders.length : '0'} của {orders.length} tổng cộng
+          Đang hiển thị {rangeStart} - {rangeEnd} của {totalCount} tổng cộng
         </span>
-        <span>Trang 1</span>
+        <div className="pagination-controls">
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+          >
+            Trước
+          </button>
+          <span>
+            Trang {currentPage}/{totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+          >
+            Sau
+          </button>
+        </div>
       </div>
 
       {/* Modal Chi tiết toàn bộ hành trình (Phương án B) */}
@@ -1026,7 +1046,7 @@ export function OrderTable({
               <div className="summary-item">
                 <span className="summary-label">Trạng thái Order:</span>
                 <span className="summary-status-tag">
-                  {journeyModalOrder.status} · {journeyModalOrder.spfCode}
+                  {journeyModalOrder.status}
                 </span>
               </div>
             </div>
@@ -1093,18 +1113,29 @@ export function OrderTable({
                       </div>
 
                       <div className="card-info-row">
+                        <span className="info-label">Mã chặng:</span>
+                        <span className="info-value">
+                          <code>{stage.stageCode || 'Chưa có mã chặng'}</code>
+                        </span>
+                      </div>
+
+                      <div className="card-info-row">
                         <span className="info-label">Mã vận đơn:</span>
                         <div className="waybill-code-row">
-                          <code className="waybill-code">{stage.tracking}</code>
-                          <button
-                            type="button"
-                            className="btn-modal-copy"
-                            onClick={(e) => handleCopyTracking(stage.tracking, stage.title, e)}
-                            title="Sao chép mã vận đơn này"
-                          >
-                            <Copy size={12} />
-                            <span>Sao chép</span>
-                          </button>
+                          <code className="waybill-code">
+                            {stage.tracking || 'NVC chưa cấp mã vận đơn'}
+                          </code>
+                          {stage.tracking && (
+                            <button
+                              type="button"
+                              className="btn-modal-copy"
+                              onClick={(e) => handleCopyTracking(stage.tracking, stage.title, e)}
+                              title="Sao chép mã vận đơn này"
+                            >
+                              <Copy size={12} />
+                              <span>Sao chép</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                       {isInternal && (
@@ -1112,7 +1143,6 @@ export function OrderTable({
                           <span className="info-label">Trạng thái NVC:</span>
                           <span className="info-value">
                             <strong>{carrierStageStatus(journeyModalOrder, stage)}</strong>
-                            {stage.carrierStatusCode ? ` · ${stage.carrierStatusCode}` : ''}
                           </span>
                         </div>
                       )}

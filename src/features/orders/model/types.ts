@@ -50,6 +50,15 @@ export interface CarrierWebhookEvent {
   payload?: string;
 }
 
+export interface OrderStatusHistoryEntry {
+  fromStatusCode?: SpfStatusCode;
+  statusCode: SpfStatusCode;
+  statusName: string;
+  reasonCode?: string;
+  reason?: string;
+  changedAt: string;
+}
+
 export interface PrintHistoryEntry {
   id: string;
   printedAt: string;
@@ -105,6 +114,7 @@ export type OrderOperation =
 export interface InstantDeliveryTracking {
   state:
     | 'CREATED'
+    | 'DRIVER_NOT_FOUND'
     | 'DRIVER_ASSIGNED'
     | 'DRIVER_TO_PICKUP'
     | 'PICKED_UP'
@@ -130,6 +140,10 @@ export interface InstantDeliveryTracking {
 export interface ShippingStageItem {
   key: 'pickup' | 'delivery' | 'return' | 'refund';
   title: string; // 'Lấy' | 'Giao' | 'Hoàn' | 'Trả cuối'
+  /** Mã chặng chuẩn từ order_legs, ví dụ STG-DELIVERY-0001. */
+  stageCode?: string;
+  stageNo?: number;
+  legType?: 1 | 2 | 3 | 4;
   carrier: string;
   tracking: string;
   isSuperShip?: boolean;
@@ -162,6 +176,8 @@ export interface Order extends OrderInput {
   status: OrderStatus;
   /** Mã trạng thái chuẩn SuperPlatform; bắt buộc để không suy diễn từ nhãn NVC. */
   spfCode: SpfStatusCode;
+  /** Lịch sử trạng thái chuẩn SPF theo thứ tự thời gian, tách biệt trạng thái riêng của NVC. */
+  statusHistory?: OrderStatusHistoryEntry[];
   printed: boolean;
   printHistory?: PrintHistoryEntry[];
   batchId: string;
@@ -204,11 +220,17 @@ export interface Order extends OrderInput {
   returnReason?: string;
   supportStatus?: string;
   codPaymentStatus?: string;
+  /** Current projection COD/Finance lấy trực tiếp từ bảng orders. */
+  collectedAmount?: number;
+  codCollectionStatus?: number;
+  settledAmount?: number;
+  codSettlementStatus?: number;
+  compensationAmount?: number;
   priceAccountType?: string;
   codChanged?: boolean;
   incidentType?: string;
   claimStatus?: string;
-  compensationStatus?: string;
+  compensationStatus?: number | string;
   syncStatus?: string;
   pickupAt?: string;
   deliveryAt?: string;

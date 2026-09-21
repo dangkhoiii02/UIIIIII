@@ -29,6 +29,8 @@ type QuickFilterId =
   | 'return_cancel'
   | 'sync_error';
 
+const PAGE_SIZE = 10;
+
 const SHOP_TABS: Array<[string, QuickFilterId]> = [
   ['Tất cả', 'all'],
   ['Chưa lấy hàng', 'unpicked'],
@@ -81,15 +83,17 @@ export default function OrdersPage() {
   const [params] = useSearchParams();
   const outletCtx = useOutletContext<{ isInternal?: boolean }>();
   const isInternal = outletCtx?.isInternal ?? false;
-  const viewer: OrderViewer = isInternal
-    ? { kind: 'internal' }
-    : { kind: 'shop', shopId: 'S275518' };
+  const viewerForOrder = (order: Order): OrderViewer =>
+    isInternal
+      ? { kind: 'internal' }
+      : { kind: 'shop', shopId: order.shopId || 'S275518' };
 
   const [filters, setFilters] = useState({ ...emptyFilters });
   const [quickFilter, setQuickFilter] = useState<QuickFilterId>('all');
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<OrderDialogState>();
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const tabsRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -128,6 +132,19 @@ export default function OrdersPage() {
       ),
     [orders, filters, query, quickFilter],
   );
+  const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const paginatedList = useMemo(() => {
+    const offset = (currentPage - 1) * PAGE_SIZE;
+    return list.slice(offset, offset + PAGE_SIZE);
+  }, [list, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, query, quickFilter, isInternal]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
     setQuickFilter('all');
@@ -147,7 +164,7 @@ export default function OrdersPage() {
       navigate(`/requests?orderId=${encodeURIComponent(order.id)}`);
     else if (action === 'copy') navigate(`/create?copy=${encodeURIComponent(order.id)}`);
     else if (action === 'edit') {
-      const decision = getOrderPermission(viewer, order, 'edit_order');
+      const decision = getOrderPermission(viewerForOrder(order), order, 'edit_order');
       if (decision.mode === 'request_support') {
         setDialog({
           type: 'support',
@@ -159,7 +176,7 @@ export default function OrdersPage() {
     }
     else if (action === 'print') setDialog({ type: 'print', orders: [order] });
     else if (action === 'cancel') {
-      const decision = getOrderPermission(viewer, order, 'cancel_order');
+      const decision = getOrderPermission(viewerForOrder(order), order, 'cancel_order');
       if (decision.mode === 'request_support') {
         setDialog({
           type: 'support',
@@ -250,7 +267,7 @@ export default function OrdersPage() {
               }
               const selectedOrders = list.filter((o) => selected.includes(o.id));
               const exportableOrders = selectedOrders.filter((order) =>
-                getOrderPermission(viewer, order, 'export_order').allowed,
+                getOrderPermission(viewerForOrder(order), order, 'export_order').allowed,
               );
               if (!exportableOrders.length) {
                 notify('Các đơn đã chọn chưa đủ điều kiện xuất dữ liệu.');
@@ -303,10 +320,17 @@ export default function OrdersPage() {
         <AsyncStatePanel state="loading" />
       ) : list.length ? (
         <OrderTable
-          orders={list}
+          orders={paginatedList}
+          totalCount={list.length}
+          currentPage={currentPage}
+          pageSize={PAGE_SIZE}
           selected={selected}
           onSelect={setSelected}
           onAction={handleAction}
+          onPageChange={(page) => {
+            setCurrentPage(Math.min(totalPages, Math.max(1, page)));
+            setSelected([]);
+          }}
           isInternal={isInternal}
         />
       ) : (

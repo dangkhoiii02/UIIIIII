@@ -3,6 +3,7 @@ import { billableWeight, filterOrders, validateOrder } from './order';
 import { defaultOrderInput, emptyFilters } from './types';
 import { createMemoryOrderRepository } from '../data/order-repository';
 import { getSpfLifecyclePhase, SPF_STATUS_MAP } from './spf-status-catalog';
+import { getTrackingSlots } from '../components/OrderTable';
 const valid = {
   ...defaultOrderInput,
   name: 'Khách mẫu',
@@ -458,5 +459,36 @@ describe('order domain', () => {
     );
 
     expect(result.map((order) => order.spfCode)).toEqual(['SPF-0801']);
+  });
+
+  it('sequences pickup, delivery and return tracking slots according to standard table format', () => {
+    // 1. Single NVC throughout (same waybill code: maintains distinct slots for Lấy and Giao)
+    const singleCarrierSlots = getTrackingSlots([
+      { key: 'pickup', title: 'Lấy', carrier: 'GHN', tracking: 'GY8YLSDK', status: 'completed' },
+      { key: 'delivery', title: 'Giao', carrier: 'GHN', tracking: 'GY8YLSDK', status: 'completed' },
+    ]);
+    expect(singleCarrierSlots).toHaveLength(2);
+    expect(singleCarrierSlots[0]).toMatchObject({ label: 'Mã Lấy', stage: { tracking: 'GY8YLSDK' } });
+    expect(singleCarrierSlots[1]).toMatchObject({ label: 'Mã Giao', stage: { tracking: 'GY8YLSDK' } });
+
+    // 2. Multi-carrier with distinct waybills (ordered Lấy -> Giao)
+    const multiSlots = getTrackingSlots([
+      { key: 'delivery', title: 'Giao', carrier: 'J&T Express', tracking: '802808938571', status: 'active' },
+      { key: 'pickup', title: 'Lấy', carrier: 'SuperShip', tracking: 'STGS983262LM.826941741', status: 'completed' },
+    ]);
+    expect(multiSlots).toHaveLength(2);
+    expect(multiSlots[0]).toMatchObject({ label: 'Mã Lấy', stage: { tracking: 'STGS983262LM.826941741' } });
+    expect(multiSlots[1]).toMatchObject({ label: 'Mã Giao', stage: { tracking: '802808938571' } });
+
+    // 3. Partial delivery with return leg
+    const partialSlots = getTrackingSlots([
+      { key: 'pickup', title: 'Lấy', carrier: 'SPX Express', tracking: 'SPXVN066263841279', status: 'completed' },
+      { key: 'delivery', title: 'Giao', carrier: 'SPX Express', tracking: 'SPXVN066263841279', status: 'completed' },
+      { key: 'return', title: 'Hoàn', carrier: 'SPX Express', tracking: 'SPXVN066263841279-RT', status: 'active' },
+    ]);
+    expect(partialSlots).toHaveLength(3);
+    expect(partialSlots[0]).toMatchObject({ label: 'Mã Lấy', stage: { tracking: 'SPXVN066263841279' } });
+    expect(partialSlots[1]).toMatchObject({ label: 'Mã Giao', stage: { tracking: 'SPXVN066263841279' } });
+    expect(partialSlots[2]).toMatchObject({ label: 'Mã Hoàn', stage: { tracking: 'SPXVN066263841279-RT' } });
   });
 });

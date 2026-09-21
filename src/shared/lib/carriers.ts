@@ -85,6 +85,8 @@ export const CARRIER_PROFILES: Record<CarrierKey, CarrierProfile> = {
     name: 'Green SM Express',
     logoSrc: '/carriers/xanhsm.jpg',
     logoClass: 'green-sm',
+    waybillExample: 'GSM-EXP-20260920-000003',
+    facilityCode: 'GSM-HCM-01',
     aliases: ['green sm express', 'green sm', 'greensm', 'xanh sm', 'xanhsm'],
   },
   grab: {
@@ -92,6 +94,8 @@ export const CARRIER_PROFILES: Record<CarrierKey, CarrierProfile> = {
     name: 'GrabExpress',
     logoSrc: '/carriers/grab.jpg',
     logoClass: 'grab',
+    waybillExample: 'DELV-1708923451-A8B9C',
+    facilityCode: 'GRAB-HCM-01',
     aliases: ['grabexpress', 'grab express', 'grab'],
   },
 };

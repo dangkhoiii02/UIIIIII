@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/shared/ui/toast-context';
 import { useOrders } from '../model/orders-context';
+import { formatInstantDistance, formatInstantEta } from '../model/instant-tracking';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -48,8 +49,11 @@ export default function InstantTrackingPage() {
   const carrier = order?.selectedCarrier || order?.shippingInfo?.deliveryCarrier || 'Nhà vận chuyển';
   const events = useMemo(
     () =>
-      [...(order?.shippingInfo?.stages?.find((stage) => stage.key === 'delivery')?.webhookEvents || [])]
-        .sort((a, b) => new Date(b.eventAt).getTime() - new Date(a.eventAt).getTime()),
+      [
+        ...(order?.shippingInfo?.stages?.length
+          ? order.shippingInfo.stages.flatMap((stage) => stage.webhookEvents || [])
+          : order?.shippingInfo?.stages?.find((stage) => stage.key === 'delivery')?.webhookEvents || []),
+      ].sort((a, b) => new Date(b.eventAt).getTime() - new Date(a.eventAt).getTime()),
     [order],
   );
 
@@ -69,6 +73,7 @@ export default function InstantTrackingPage() {
   }
 
   const isDelivered = tracking.state === 'DELIVERED';
+  const isDriverNotFound = tracking.state === 'DRIVER_NOT_FOUND';
   const progress = Math.max(0, Math.min(100, tracking.progressPercent));
   const driverX = 90 + (progress / 100) * 540;
   const driverY = 310 - (progress / 100) * 205;
@@ -93,7 +98,11 @@ export default function InstantTrackingPage() {
         <div className="order-detail-header-right">
           <div className={`instant-live-state ${isDelivered ? 'completed' : ''}`}>
             {isDelivered ? <CheckCircle2 size={16} /> : <Radio size={16} />}
-            {isDelivered ? 'Đã hoàn tất' : 'Đang cập nhật trực tiếp'}
+            {isDelivered
+              ? 'Đã hoàn tất'
+              : isDriverNotFound
+                ? 'Phân bổ tài xế thất bại'
+                : 'Đang cập nhật trực tiếp'}
           </div>
           <span className="order-header-created-date">Mã đơn: {order.id}</span>
         </div>
@@ -132,7 +141,13 @@ export default function InstantTrackingPage() {
               <Route size={13} />
               <span>QUÃNG ĐƯỜNG CÒN LẠI</span>
             </div>
-            <strong>{isDelivered ? 'Đã đến nơi' : `${tracking.remainingDistanceKm} km`}</strong>
+            <strong>
+              {isDelivered
+                ? 'Đã đến nơi'
+                : isDriverNotFound
+                  ? 'Chưa bắt đầu'
+                  : formatInstantDistance(tracking.remainingDistanceKm)}
+            </strong>
             <small>{progress}% hành trình</small>
             <div className="instant-summary-progress" aria-hidden="true">
               <span style={{ width: `${progress}%` }} />
@@ -141,10 +156,22 @@ export default function InstantTrackingPage() {
           <div className="instant-summary-item">
             <div className="instant-summary-label">
               <Clock3 size={13} />
-              <span>{isDelivered ? 'HOÀN THÀNH LÚC' : 'DỰ KIẾN TỚI'}</span>
+              <span>
+                {isDelivered ? 'HOÀN THÀNH LÚC' : isDriverNotFound ? 'PHÂN BỔ TÀI XẾ' : 'DỰ KIẾN TỚI'}
+              </span>
             </div>
-            <strong>{formatTime(tracking.estimatedArrivalAt).split(' ')[0]}</strong>
-            <small>{isDelivered ? 'Đã bàn giao' : `Khoảng ${tracking.etaMinutes} phút nữa`}</small>
+            <strong>
+              {isDriverNotFound ? 'Không thành công' : formatTime(tracking.estimatedArrivalAt).split(' ')[0]}
+            </strong>
+            <small>
+              {isDelivered
+                ? 'Đã bàn giao'
+                : isDriverNotFound
+                  ? 'Có thể thử lại hoặc đổi NVC'
+                  : formatInstantEta(tracking.etaMinutes)
+                    ? `Khoảng ${formatInstantEta(tracking.etaMinutes)} nữa`
+                    : ''}
+            </small>
           </div>
         </div>
       </section>
@@ -208,7 +235,13 @@ export default function InstantTrackingPage() {
           <div className="instant-route-progress-panel">
             <div className="instant-progress-copy">
               <strong>{progress}% hành trình</strong>
-              <span>{isDelivered ? 'Đã hoàn thành' : `Còn ${tracking.remainingDistanceKm} km`}</span>
+              <span>
+                {isDelivered
+                  ? 'Đã hoàn thành'
+                  : formatInstantDistance(tracking.remainingDistanceKm)
+                    ? `Còn ${formatInstantDistance(tracking.remainingDistanceKm)}`
+                    : ''}
+              </span>
             </div>
             <div className="instant-progress-track">
               <span style={{ width: `${progress}%` }} />
