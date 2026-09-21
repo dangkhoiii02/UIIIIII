@@ -4711,6 +4711,9 @@ a:focus-visible {
   background: #f1f5f9;
 }
 .table-cell-date {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   color: #64748b;
   margin-top: 3px;
@@ -4800,6 +4803,27 @@ a:focus-visible {
   font-weight: 600;
   color: #334155;
 }
+.order-financial-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.order-financial-label {
+  font-weight: 600;
+  color: #475569;
+}
+.order-financial-value {
+  margin-left: 0;
+  font-weight: 700;
+}
+.order-cod-row .order-financial-value {
+  color: #dc2626;
+}
+.order-value-row .order-financial-value {
+  color: #15803d;
+}
 .product-note-text {
   font-size: 12.5px;
   color: #475569;
@@ -4834,6 +4858,17 @@ a:focus-visible {
 .order-results table td.table-primary-cell {
   vertical-align: middle !important;
   text-align: left !important;
+}
+.order-results table th.table-selection-cell,
+.order-results table td.table-selection-cell {
+  vertical-align: middle !important;
+  text-align: left !important;
+  padding-left: 7px !important;
+}
+.order-results table th.table-selection-cell input,
+.order-results table td.table-selection-cell input {
+  display: block;
+  margin: 0;
 }
 .order-results table th {
   padding: 12px 6px !important;
@@ -5521,7 +5556,7 @@ a:focus-visible {
 .order-results.internal-order-results table,
 .internal-order-results table {
   width: max-content !important;
-  min-width: 1400px !important;
+  min-width: 1200px !important;
   table-layout: fixed !important;
 }
 .internal-order-results table th,
@@ -5540,6 +5575,18 @@ a:focus-visible {
 .internal-order-results .table-order-info-cell,
 .internal-order-results .table-shop-cell {
   gap: 3px;
+}
+.internal-order-results .table-order-info-cell {
+  min-width: 0;
+}
+.internal-order-results .table-order-info-cell .cell-item-row {
+  min-width: 0;
+}
+.internal-order-results .table-order-info-cell .product-name-bold {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .internal-order-results .table-shop-cell,
 .internal-order-results .table-shop-name-row,

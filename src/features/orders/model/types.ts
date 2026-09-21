@@ -154,6 +154,9 @@ export interface ShippingStageItem {
   carrierStatusText?: string;
   carrierStatusCode?: string;
   carrierUpdatedAt?: string;
+  /** Mốc gửi yêu cầu và NVC tiếp nhận vận đơn, dùng để dựng lịch sử hành động. */
+  requestSentAt?: string;
+  carrierAcceptedAt?: string;
   /** Nhật ký webhook gốc chỉ hiển thị cho người dùng nội bộ theo đúng chặng/NVC. */
   webhookEvents?: CarrierWebhookEvent[];
 }

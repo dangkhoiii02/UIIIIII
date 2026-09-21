@@ -12,6 +12,10 @@ import {
   MapPin,
   Package,
   Scale,
+  DollarSign,
+  Receipt,
+  FileText,
+  CalendarDays,
   Copy,
   Truck,
   Clock,
@@ -414,6 +418,7 @@ export function OrderTable({
           <thead>
             <tr>
               <th
+                className="table-selection-cell"
                 style={{
                   width: isInternal ? 36 : '3.5%',
                   minWidth: isInternal ? 36 : undefined,
@@ -429,27 +434,29 @@ export function OrderTable({
                   }
                 />
               </th>
-              <th
-                className="table-heading-left"
-                style={{ width: isInternal ? 140 : '12%', minWidth: isInternal ? 140 : undefined }}
-              >
-                Mã Đơn Hàng
-              </th>
               {isInternal ? (
                 <>
-                  <th className="table-heading-left" style={{ width: 160, minWidth: 160 }}>
-                    Cửa Hàng / Shop
+                  <th className="table-heading-left" style={{ width: 250, minWidth: 250 }}>
+                    Mã Đơn Hàng / Cửa Hàng
                   </th>
                   <th className="table-heading-left" style={{ width: 220, minWidth: 220 }}>
                     Người Nhận
                   </th>
                 </>
               ) : (
-                <th style={{ width: '17%' }}>Khách Hàng</th>
+                <>
+                  <th
+                    className="table-heading-left"
+                    style={{ width: '12%', minWidth: undefined }}
+                  >
+                    Mã Đơn Hàng
+                  </th>
+                  <th style={{ width: '17%' }}>Khách Hàng</th>
+                </>
               )}
               <th
                 className="table-heading-left"
-                style={{ width: isInternal ? 155 : '13%', minWidth: isInternal ? 155 : undefined }}
+                style={{ width: isInternal ? 220 : '13%', minWidth: isInternal ? 220 : undefined }}
               >
                 Thông Tin Đơn Hàng
               </th>
@@ -459,18 +466,16 @@ export function OrderTable({
               >
                 {isInternal ? 'NVC & trạng thái từng chặng' : 'Thông Tin Vận Chuyển'}
               </th>
-              <th
-                className="customer-collection-column"
-                style={{ width: isInternal ? 110 : '9.5%', minWidth: isInternal ? 110 : undefined }}
-              >
-                Tiền Thu Khách
-              </th>
-              <th
-                className="order-value-column"
-                style={{ width: isInternal ? 105 : '7.5%', minWidth: isInternal ? 105 : undefined }}
-              >
-                Trị Giá Hàng
-              </th>
+              {!isInternal && (
+                <>
+                  <th className="customer-collection-column" style={{ width: '9.5%' }}>
+                    Tiền Thu Khách
+                  </th>
+                  <th className="order-value-column" style={{ width: '7.5%' }}>
+                    Trị Giá Hàng
+                  </th>
+                </>
+              )}
               <th
                 className="order-status-column"
                 style={{ width: isInternal ? 140 : '13%', minWidth: isInternal ? 140 : undefined }}
@@ -496,7 +501,7 @@ export function OrderTable({
 
               return (
                 <tr key={order.id}>
-                  <td style={{ paddingLeft: 16, paddingTop: 16 }}>
+                  <td className="table-selection-cell">
                     <input
                       type="checkbox"
                       aria-label={'Chọn đơn ' + order.id}
@@ -511,9 +516,10 @@ export function OrderTable({
                     />
                   </td>
 
-                  {/* Cột 1: Mã Đơn Hàng */}
-                  <td className="table-primary-cell">
+                  {/* Cột Mã Đơn Hàng + Cửa Hàng / Shop (Dành riêng cho Nội bộ) */}
+                  <td className={`table-primary-cell ${isInternal ? 'table-order-shop-cell' : ''}`}>
                     <div className="table-order-id-cell">
+                      {isInternal && <FileText size={14} className="cell-icon-slate" />}
                       <span
                         className="order-id-link"
                         onClick={() => onAction('detail', order)}
@@ -530,12 +536,11 @@ export function OrderTable({
                         <Copy size={13} />
                       </button>
                     </div>
-                    <div className="table-cell-date">{formatDisplayDate(order.createdAt)}</div>
-                  </td>
-
-                  {/* Cột Cửa Hàng / Shop (Dành riêng cho Nội bộ) */}
-                  {isInternal && (
-                    <td className="table-primary-cell">
+                    <div className="table-cell-date">
+                      {isInternal && <CalendarDays size={13} className="cell-icon-slate" />}
+                      <span>{formatDisplayDate(order.createdAt)}</span>
+                    </div>
+                    {isInternal && (
                       <div className="table-shop-cell">
                         <div className="cell-item-row table-shop-name-row">
                           <Store size={14} className="cell-icon-slate" />
@@ -558,8 +563,8 @@ export function OrderTable({
                           </div>
                         )}
                       </div>
-                    </td>
-                  )}
+                    )}
+                  </td>
 
                   {/* Cột Người Nhận / Khách Hàng */}
                   <td className="table-primary-cell">
@@ -596,7 +601,7 @@ export function OrderTable({
                     </div>
                   </td>
 
-                  {/* Cột 3: Thông Tin Đơn Hàng (Package, Scale - Đã bỏ ghi chú) */}
+                  {/* Cột 3: Thông Tin Đơn Hàng */}
                   <td className="table-primary-cell">
                     <div className="table-order-info-cell">
                       <div className="cell-item-row">
@@ -610,6 +615,20 @@ export function OrderTable({
                           {order.weight > 0 ? `${order.weight} gr` : 'Chưa có khối lượng'}
                         </span>
                       </div>
+                      {isInternal && (
+                        <>
+                          <div className="order-financial-row order-cod-row">
+                            <DollarSign size={14} className="cell-icon-slate" />
+                            <span className="order-financial-label">COD:</span>
+                            <strong className="order-financial-value">{money(order.cod)}</strong>
+                          </div>
+                          <div className="order-financial-row order-value-row">
+                            <Receipt size={14} className="cell-icon-slate" />
+                            <span className="order-financial-label">Trị Giá:</span>
+                            <strong className="order-financial-value">{money(order.value)}</strong>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </td>
 
@@ -917,21 +936,25 @@ export function OrderTable({
                     })()}
                   </td>
 
-                  {/* Cột 5: Tiền Thu Khách */}
-                  <td
-                    className="red customer-collection-column"
-                    style={{ fontWeight: 700, fontSize: 13.5, paddingTop: 16 }}
-                  >
-                    {money(order.cod)}
-                  </td>
+                  {!isInternal && (
+                    <>
+                      {/* Cột 5: Tiền Thu Khách */}
+                      <td
+                        className="red customer-collection-column"
+                        style={{ fontWeight: 700, fontSize: 13.5, paddingTop: 16 }}
+                      >
+                        {money(order.cod)}
+                      </td>
 
-                  {/* Cột 6: Trị Giá Hàng */}
-                  <td
-                    className="green order-value-column"
-                    style={{ fontWeight: 700, fontSize: 13.5, paddingTop: 16 }}
-                  >
-                    {money(order.value)}
-                  </td>
+                      {/* Cột 6: Trị Giá Hàng */}
+                      <td
+                        className="green order-value-column"
+                        style={{ fontWeight: 700, fontSize: 13.5, paddingTop: 16 }}
+                      >
+                        {money(order.value)}
+                      </td>
+                    </>
+                  )}
 
                   {/* Cột 7: Trạng Thái Đơn Hàng */}
                   <td className="order-status-column" style={{ paddingTop: 14 }}>

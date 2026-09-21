@@ -287,6 +287,8 @@ function mapStage(
       stage.waybill?.carrier_status_code || stage.stage_status_code || latestEvent?.statusCode,
     carrierUpdatedAt:
       stage.waybill?.carrier_status_at || latestEvent?.eventAt || stage.started_at || undefined,
+    requestSentAt: stage.waybill?.request_sent_at || undefined,
+    carrierAcceptedAt: stage.waybill?.carrier_accepted_at || undefined,
     webhookEvents: events,
   };
 }

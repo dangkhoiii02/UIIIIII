@@ -1023,237 +1023,198 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
   ];
 }
 
-function getDetailActionHistory(order: Order): ActionHistoryItem[] {
-  if (order.statusHistory?.length) {
-    return [...order.statusHistory]
+type DetailActionHistoryRecord = {
+  item: Omit<ActionHistoryItem, 'id'>;
+  occurredAt: number;
+  sequence: number;
+};
+
+function getActionHistoryTimestamp(value?: string): number {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function buildDetailActionHistory(order: Order): ActionHistoryItem[] {
+  const records: DetailActionHistoryRecord[] = [];
+  let sequence = 0;
+  const addRecord = (
+    item: Omit<ActionHistoryItem, 'id'>,
+    occurredAt: string | undefined,
+  ) => {
+    records.push({
+      item,
+      occurredAt: getActionHistoryTimestamp(occurredAt),
+      sequence: sequence++,
+    });
+  };
+
+  const stages = order.shippingInfo?.stages || [];
+  const statusHistory = order.statusHistory || [];
+  const stageEvents = stages.flatMap((stage) =>
+    (stage.webhookEvents || []).map((event) => ({ stage, event })),
+  );
+  const consumedStatusEntries = new Set<number>();
+
+  const findMatchingStatusEntry = (event: CarrierWebhookEvent) => {
+    const eventTime = getActionHistoryTimestamp(event.eventAt);
+    let bestIndex = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    statusHistory.forEach((entry, index) => {
+      if (consumedStatusEntries.has(index) || entry.statusCode !== event.mappedSpfCode) {
+        return;
+      }
+      const distance = Math.abs(getActionHistoryTimestamp(entry.changedAt) - eventTime);
+      if (distance <= 90_000 && distance < bestDistance) {
+        bestIndex = index;
+        bestDistance = distance;
+      }
+    });
+
+    return bestIndex;
+  };
+
+  addRecord(
+    {
+      actor: order.shopName || 'Shop',
+      message: `đã tạo đơn hàng ${order.id} trên SuperPlatform.`,
+      time: formatDisplayDate(order.createdAt),
+      visibility: 'shop',
+    },
+    order.createdAt,
+  );
+
+  const createdWaybills = new Set<string>();
+  for (const stage of stages) {
+    if (!stage.tracking || createdWaybills.has(stage.tracking)) continue;
+    createdWaybills.add(stage.tracking);
+
+    const stageLabel =
+      stage.key === 'pickup'
+        ? 'lấy hàng'
+        : stage.key === 'delivery'
+          ? 'giao hàng'
+          : stage.key === 'return'
+            ? 'hoàn hàng'
+            : 'trả hàng cuối';
+
+    if (stage.requestSentAt) {
+      addRecord(
+        {
+          actor: 'SuperPlatform',
+          message: `đã gửi yêu cầu tạo vận đơn ${stageLabel} tới ${stage.carrier}.`,
+          time: formatDisplayDate(stage.requestSentAt),
+          visibility: 'shop',
+        },
+        stage.requestSentAt,
+      );
+    }
+    if (stage.carrierAcceptedAt) {
+      addRecord(
+        {
+          actor: stage.carrier,
+          message: `đã tạo vận đơn thành công với mã ${stage.tracking}.`,
+          time: formatDisplayDate(stage.carrierAcceptedAt),
+          visibility: 'shop',
+        },
+        stage.carrierAcceptedAt,
+      );
+    }
+  }
+
+  for (const { stage, event } of stageEvents) {
+    const matchedStatusIndex = findMatchingStatusEntry(event);
+    const isPlatformEvent = event.statusCode.startsWith('SPF-');
+    if (isPlatformEvent && matchedStatusIndex >= 0) {
+      consumedStatusEntries.add(matchedStatusIndex);
+    }
+
+    const isTechnicalEvent = event.processingStatus !== 'processed';
+    const statusLabel = event.statusText || event.mappedSpfStatus;
+    const processingNote =
+      event.processingStatus === 'duplicate'
+        ? ' Sự kiện trùng đã được bỏ qua.'
+        : event.processingStatus === 'failed'
+          ? ' Sự kiện đã nhận nhưng chưa đồng bộ thành công.'
+          : '';
+
+    if (isPlatformEvent) {
+      addRecord(
+        {
+          actor: 'SuperPlatform',
+          message: isTechnicalEvent
+            ? `đã nhận sự kiện trạng thái tổng “${statusLabel}”.${processingNote}`
+            : `đã cập nhật trạng thái tổng sang “${statusLabel}”.`,
+          time: formatDisplayDate(event.eventAt),
+          visibility: isTechnicalEvent ? 'internal' : 'shop',
+          rawMeta: `${event.statusCode} · ${event.requestId}`,
+        },
+        event.eventAt,
+      );
+      continue;
+    }
+
+    addRecord(
+      {
+        actor: stage.carrier,
+        stageTag: `${stage.title} · ${stage.carrier}`,
+        message: isTechnicalEvent
+          ? `đã gửi trạng thái vận đơn ${stage.tracking} “${statusLabel}”.${processingNote}`
+          : `đã cập nhật vận đơn ${stage.tracking} sang “${statusLabel}”${event.location ? ` tại ${event.location}` : ''}.`,
+        time: formatDisplayDate(event.eventAt),
+        visibility: isTechnicalEvent ? 'internal' : 'shop',
+        rawMeta: `${event.statusCode} · ${event.requestId}`,
+      },
+      event.eventAt,
+    );
+  }
+
+  statusHistory.forEach((entry, index) => {
+    if (consumedStatusEntries.has(index)) return;
+
+    const matchingCarrierEvent = stageEvents
+      .filter(({ event }) => {
+        if (event.processingStatus !== 'processed' || event.statusCode.startsWith('SPF-')) {
+          return false;
+        }
+        const distance = Math.abs(
+          getActionHistoryTimestamp(event.eventAt) - getActionHistoryTimestamp(entry.changedAt),
+        );
+        return event.mappedSpfCode === entry.statusCode && distance <= 90_000;
+      })
       .sort(
-        (left, right) => new Date(right.changedAt).getTime() - new Date(left.changedAt).getTime(),
-      )
-      .map((entry, index) => ({
-        id: 10_000 + index,
+        (left, right) =>
+          Math.abs(getActionHistoryTimestamp(left.event.eventAt) - getActionHistoryTimestamp(entry.changedAt)) -
+          Math.abs(getActionHistoryTimestamp(right.event.eventAt) - getActionHistoryTimestamp(entry.changedAt)),
+      )[0];
+
+    const reason = entry.reason && entry.reasonCode !== 'UI_CURRENT_STATE' ? ` ${entry.reason}` : '';
+    addRecord(
+      {
         actor: 'SuperPlatform',
-        message: `đã cập nhật trạng thái Order sang “${entry.statusName}”${entry.reason ? `. ${entry.reason}` : '.'}`,
+        message: matchingCarrierEvent
+          ? `đã nhận trạng thái NVC “${matchingCarrierEvent.event.statusText}” từ ${matchingCarrierEvent.stage.carrier} và cập nhật trạng thái tổng của đơn sang “${entry.statusName}”.`
+          : `đã cập nhật trạng thái tổng của đơn sang “${entry.statusName}”.${reason}`,
         time: formatDisplayDate(entry.changedAt),
         visibility: 'shop',
-      }));
-  }
+        rawMeta: `${entry.statusCode}${entry.reasonCode ? ` · ${entry.reasonCode}` : ''}`,
+      },
+      entry.changedAt,
+    );
+  });
 
-  if (order.serviceType === 'instant') {
-    const stage = order.shippingInfo?.stages?.find((item) => item.key === 'delivery');
-    const carrier = stage?.carrier || order.selectedCarrier || 'Nhà vận chuyển';
-    const trackingCode = stage?.tracking || order.shippingInfo?.deliveryTracking || '';
-    const carrierActions: ActionHistoryItem[] = [...(stage?.webhookEvents || [])]
-      .sort((a, b) => new Date(b.eventAt).getTime() - new Date(a.eventAt).getTime())
-      .map((event, index) => ({
-        id: 100 + index,
-        actor: carrier,
-        message: `đã cập nhật chuyến giao ${trackingCode} sang “${event.statusText}”${event.location ? ` tại ${event.location}` : ''}.`,
-        time: formatDisplayDate(event.eventAt),
-        visibility: 'shop',
-      }));
+  return records
+    .sort((left, right) => right.occurredAt - left.occurredAt || right.sequence - left.sequence)
+    .map((record, index) => ({ id: 20_000 + index, ...record.item }));
+}
 
-    return [
-      ...carrierActions,
-      {
-        id: 199,
-        actor: order.shopName || 'Shop',
-        message: `đã tạo đơn giao hỏa tốc ${order.id} qua ${carrier}.`,
-        time: formatDisplayDate(order.createdAt),
-        visibility: 'shop',
-      },
-    ];
-  }
-
-  const phase = getSpfLifecyclePhase(order.spfCode);
-  const isMultiLegOrReturn =
-    phase === 'handover' ||
-    phase === 'delivery' ||
-    phase === 'return' ||
-    phase === 'returned' ||
-    Boolean(order.shippingInfo?.returnTracking) ||
-    Boolean(order.shippingInfo?.deliveryTracking);
-
-  const deliveryCarrier = order.shippingInfo?.deliveryCarrier?.includes('BEST')
-    ? 'BEST'
-    : order.shippingInfo?.deliveryCarrier || 'BEST';
-  const pickupCarrier = 'SuperShip';
-  const pickupCode = order.shippingInfo?.pickupTracking || 'STGS983262LM.826941741';
-  const deliveryCode = order.shippingInfo?.deliveryTracking || '999800060099891';
-  const orderId = order.id || '900115667406';
-  const shopName = 'Shop Gia Dụng Việt';
-
-  if (isMultiLegOrReturn) {
-    return [
-      {
-        id: 1,
-        actor: 'SuperPlatform',
-        message: `đã nhận trạng thái “Lấy hàng không thành công” từ ${deliveryCarrier} và cập nhật trạng thái tổng sang “Bàn giao thất bại”.`,
-        time: '25/08/2026 - 09:20',
-        visibility: 'internal',
-      },
-      {
-        id: 2,
-        actor: deliveryCarrier,
-        message: `đã cập nhật vận đơn ${deliveryCode} sang “Lấy hàng không thành công”.`,
-        time: '25/08/2026 - 09:20',
-        visibility: 'internal',
-      },
-      {
-        id: 3,
-        actor: deliveryCarrier,
-        message: `đã cập nhật vận đơn ${deliveryCode} sang “Đang đi lấy hàng”.`,
-        time: '25/08/2026 - 09:10',
-        visibility: 'internal',
-      },
-      {
-        id: 4,
-        actor: 'SuperPlatform',
-        message: `đã cập nhật trạng thái tổng sang “Đang yêu cầu bàn giao lại” và yêu cầu ${deliveryCarrier} nhận hàng lại.`,
-        time: '25/08/2026 - 09:10',
-        visibility: 'internal',
-      },
-      {
-        id: 5,
-        actor: 'SuperPlatform',
-        message: `đã nhận trạng thái “Lấy hàng không thành công” từ ${deliveryCarrier} và cập nhật trạng thái tổng sang “Bàn giao thất bại”.`,
-        time: '25/08/2026 - 08:50',
-        visibility: 'shop',
-      },
-      {
-        id: 6,
-        actor: deliveryCarrier,
-        message: `đã cập nhật vận đơn ${deliveryCode} sang “Lấy hàng không thành công”.`,
-        time: '25/08/2026 - 08:50',
-        visibility: 'internal',
-      },
-      {
-        id: 7,
-        actor: 'SuperPlatform',
-        message: `đã nhận trạng thái “Đang đi lấy hàng” từ ${deliveryCarrier} và cập nhật trạng thái tổng sang “NVC giao đang nhận hàng”.`,
-        time: '25/08/2026 - 08:45',
-        visibility: 'internal',
-      },
-      {
-        id: 8,
-        actor: deliveryCarrier,
-        message: `đã cập nhật vận đơn ${deliveryCode} sang “Đang đi lấy hàng”.`,
-        time: '25/08/2026 - 08:45',
-        visibility: 'shop',
-      },
-      {
-        id: 9,
-        actor: 'SuperPlatform',
-        message: `đã nhận trạng thái “Chờ bàn giao cho NVC giao” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Chờ bàn giao”.`,
-        time: '25/08/2026 - 08:40',
-        visibility: 'internal',
-      },
-      {
-        id: 10,
-        actor: pickupCarrier,
-        message: `đã cập nhật vận đơn ${pickupCode} sang “Chờ bàn giao cho NVC giao”.`,
-        time: '25/08/2026 - 08:40',
-        visibility: 'shop',
-      },
-      {
-        id: 11,
-        actor: 'SuperPlatform',
-        message: `đã nhận trạng thái “Nhập kho” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Đã nhập kho/bưu cục lấy”.`,
-        time: '25/08/2026 - 08:38',
-        visibility: 'internal',
-      },
-      {
-        id: 12,
-        actor: pickupCarrier,
-        message: `đã cập nhật vận đơn ${pickupCode} sang “Nhập kho”.`,
-        time: '25/08/2026 - 08:38',
-        visibility: 'shop',
-      },
-      {
-        id: 13,
-        actor: 'SuperPlatform',
-        message: `đã nhận trạng thái “Lấy hàng thành công” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Đã lấy hàng”.`,
-        time: '25/08/2026 - 08:35',
-        visibility: 'internal',
-      },
-      {
-        id: 14,
-        actor: pickupCarrier,
-        message: `đã cập nhật vận đơn ${pickupCode} sang “Lấy hàng thành công”.`,
-        time: '25/08/2026 - 08:35',
-        visibility: 'shop',
-      },
-      {
-        id: 15,
-        actor: 'SuperPlatform',
-        message: `đã nhận trạng thái “Đang lấy hàng” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Đang lấy hàng”.`,
-        time: '25/08/2026 - 08:20',
-        visibility: 'internal',
-      },
-      {
-        id: 16,
-        actor: pickupCarrier,
-        message: `đã cập nhật vận đơn ${pickupCode} sang “Đang lấy hàng”.`,
-        time: '25/08/2026 - 08:20',
-        visibility: 'shop',
-      },
-      {
-        id: 17,
-        actor: 'SuperPlatform',
-        message: `đã nhận trạng thái “Chờ lấy hàng” từ ${pickupCarrier} và cập nhật trạng thái tổng sang “Chờ lấy hàng”.`,
-        time: '25/08/2026 - 08:05',
-        visibility: 'internal',
-      },
-      {
-        id: 18,
-        actor: pickupCarrier,
-        message: `đã cập nhật vận đơn ${pickupCode} sang “Chờ lấy hàng”.`,
-        time: '25/08/2026 - 08:05',
-        visibility: 'shop',
-      },
-      {
-        id: 19,
-        actor: 'SuperPlatform',
-        message: `đã tạo vận đơn lấy hàng ${pickupCode} trên ${pickupCarrier} và vận đơn giao hàng ${deliveryCode} trên ${deliveryCarrier}.`,
-        time: '25/08/2026 - 08:03',
-        visibility: 'internal',
-      },
-      {
-        id: 20,
-        actor: shopName,
-        message: `đã tạo đơn hàng ${orderId} trên SuperPlatform.`,
-        time: '25/08/2026 - 08:00',
-        visibility: 'shop',
-      },
-    ];
-  }
-
-  return [
-    {
-      id: 1,
-      actor: shopName,
-      message: `đã in phiếu gửi cho đơn hàng ${order.id}.`,
-      time: '14/09/2026 - 14:21',
-      visibility: 'shop',
-    },
-    {
-      id: 2,
-      actor: 'SuperPlatform',
-      message: `đã phân tuyến SuperPlatform thông minh kết nối sang đối tác ${deliveryCarrier}.`,
-      time: '14/09/2026 - 11:22',
-      visibility: 'internal',
-    },
-    {
-      id: 3,
-      actor: shopName,
-      message: `đã tạo đơn hàng ${order.id} trên SuperPlatform.`,
-      time: '14/09/2026 - 11:21',
-      visibility: 'shop',
-    },
-  ];
+function getDetailActionHistory(order: Order): ActionHistoryItem[] {
+  return buildDetailActionHistory(order);
 }
 
 function formatDisplayDate(dateStr?: string): string {
-  if (!dateStr) return '14/09/2026 - 11:21';
+  if (!dateStr) return '—';
   if (dateStr.includes(' - ') || dateStr.includes(' • ')) return dateStr;
   try {
     const d = new Date(dateStr);
