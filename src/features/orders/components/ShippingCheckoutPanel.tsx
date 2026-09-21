@@ -23,12 +23,7 @@ import { billableWeight } from '../model/order';
 export type CustomerApplication = 'supership' | 'superai';
 type DeliveryMode = 'standard' | 'instant';
 type SelectionMode =
-  | 'ai-best'
-  | 'default'
-  | 'ai-multi'
-  | 'cheapest'
-  | 'fastest'
-  | 'default-fallback';
+  'ai-best' | 'default' | 'ai-multi' | 'cheapest' | 'fastest' | 'default-fallback';
 
 interface DeliveryOption {
   id: string;
@@ -294,9 +289,14 @@ function DeliveryOptionCard({
         <span className="delivery-option-success-rate">
           Tỷ lệ: <strong>{option.score}%</strong>
         </span>
-        <span className="delivery-option-rating" aria-label={`Đánh giá ${option.rating} trên 5 sao`}>
+        <span
+          className="delivery-option-rating"
+          aria-label={`Đánh giá ${option.rating} trên 5 sao`}
+        >
           {Array.from({ length: 5 }, (_, index) => (
-            <span key={index} className={index < option.rating ? 'filled' : ''}>★</span>
+            <span key={index} className={index < option.rating ? 'filled' : ''}>
+              ★
+            </span>
           ))}
         </span>
         {option.kind === 'standard' && (
@@ -307,12 +307,20 @@ function DeliveryOptionCard({
       </span>
       <span className="delivery-option-price">
         <strong>{money(option.price)}</strong>
-        {option.kind === 'instant' && <small><Bike size={11} /> {option.vehicle}</small>}
+        {option.kind === 'instant' && (
+          <small>
+            <Bike size={11} /> {option.vehicle}
+          </small>
+        )}
       </span>
       {option.kind === 'instant' && (
         <span className="instant-delivery-times">
-          <span>Nhận hàng<strong>{option.pickupEta?.replace('Tới lấy trong ', '~')}</strong></span>
-          <span>Giao tới<strong>{option.eta.replace('Giao dự kiến ', '~')}</strong></span>
+          <span>
+            Nhận hàng<strong>{option.pickupEta?.replace('Tới lấy trong ', '~')}</strong>
+          </span>
+          <span>
+            Giao tới<strong>{option.eta.replace('Giao dự kiến ', '~')}</strong>
+          </span>
         </span>
       )}
     </button>
@@ -353,11 +361,11 @@ export function ShippingCheckoutPanel({
   const { address: pickupAddress } = usePickup();
   const readyForQuote = Boolean(
     value.name.trim() &&
-      value.phone.trim() &&
-      value.address.trim() &&
-      value.region.trim() &&
-      value.product.trim() &&
-      value.weight > 0,
+    value.phone.trim() &&
+    value.address.trim() &&
+    value.region.trim() &&
+    value.product.trim() &&
+    value.weight > 0,
   );
   const detectArea = (text: string) => {
     const normalized = text
@@ -394,6 +402,7 @@ export function ShippingCheckoutPanel({
   const effectiveDeliveryMode: DeliveryMode = isInnerCityEligible ? deliveryMode : 'standard';
   const activeSelectedOption =
     selectedOption?.kind === effectiveDeliveryMode ? selectedOption : undefined;
+  const shippingFee = readyForQuote ? activeSelectedOption?.price || 0 : 0;
 
   useEffect(() => {
     if (!availableOptions.some((option) => option.id === selectedOptionId)) {
@@ -419,6 +428,7 @@ export function ShippingCheckoutPanel({
       fulfillmentPlan: isSuperAi ? 'DIRECT_CARRIER' : 'LOCAL_PARTNER',
       selectedCarrier: selectedOption?.carrier,
       selectedService: selectedOption?.service,
+      shippingFee,
       carrierSelectionMode: selectionMode,
       pickupAddressOverride:
         selectedOption?.id === 'grab-bike' && grabOverrideEnabled
@@ -438,6 +448,7 @@ export function ShippingCheckoutPanel({
     selectedOption?.id,
     selectedOption?.service,
     selectionMode,
+    shippingFee,
   ]);
 
   const selectOption = (option: DeliveryOption) => {
@@ -472,14 +483,12 @@ export function ShippingCheckoutPanel({
     setShowConfig(false);
   };
 
-  const shippingFee = readyForQuote ? activeSelectedOption?.price || 0 : 0;
-
   return (
     <div className="create-shipping-panel">
       <section className={`shipping-method-card ${!readyForQuote ? 'compact' : ''}`}>
         <div className="shipping-checkout-title">
           <WalletCards size={19} />
-          <h2>Cước phí</h2>
+          <h2>Phí và tiền thu hộ</h2>
         </div>
 
         <div className="shipping-payment-choice">
@@ -526,7 +535,11 @@ export function ShippingCheckoutPanel({
         ) : (
           <>
             {isInnerCityEligible && (
-              <div className="shipping-service-tabs" role="tablist" aria-label="Loại hình vận chuyển">
+              <div
+                className="shipping-service-tabs"
+                role="tablist"
+                aria-label="Loại hình vận chuyển"
+              >
                 <button
                   type="button"
                   className={deliveryMode === 'standard' ? 'active' : ''}
@@ -563,7 +576,9 @@ export function ShippingCheckoutPanel({
             <div className="delivery-options-groups">
               {effectiveDeliveryMode === 'standard' ? (
                 <div className="delivery-option-group">
-                  <div className="carrier-list-label">{isSuperAi ? 'Phương án đã chọn' : 'Gợi ý'}</div>
+                  <div className="carrier-list-label">
+                    {isSuperAi ? 'Phương án đã chọn' : 'Gợi ý'}
+                  </div>
                   {STANDARD_OPTIONS.filter(
                     (option) => option.id === (activeSelectedOption?.id || STANDARD_OPTIONS[0]!.id),
                   ).map((option) => (
@@ -614,8 +629,12 @@ export function ShippingCheckoutPanel({
                   )}
                   {isInnerCityEligible && (
                     <div className="instant-price-refresh">
-                      <span><Check size={12} /> Giá vừa được cập nhật</span>
-                      <button type="button"><RefreshCw size={12} /> Làm mới giá</button>
+                      <span>
+                        <Check size={12} /> Giá vừa được cập nhật
+                      </span>
+                      <button type="button">
+                        <RefreshCw size={12} /> Làm mới giá
+                      </button>
                     </div>
                   )}
                 </div>
@@ -641,15 +660,21 @@ export function ShippingCheckoutPanel({
           <>
             <div className="shipping-fee-breakdown">
               <div className="fee-row">
-                <span>Giá trị hàng hóa <Info size={12} /></span>
+                <span>
+                  Trị giá hàng <Info size={12} />
+                </span>
                 <b>{money(value.value || 0)}</b>
               </div>
               <div className="fee-row">
-                <span>Khối lượng tính cước <Info size={12} /></span>
+                <span>
+                  Khối lượng <Info size={12} />
+                </span>
                 <b>{billableWeight(value) || 0} gr</b>
               </div>
               <div className="fee-row">
-                <span>Phí giao hàng ({value.payer === 'sender' ? 'Cấn trừ COD' : 'Người nhận trả'})</span>
+                <span>
+                  Phí giao hàng ({value.payer === 'sender' ? 'Cấn trừ COD' : 'Người nhận trả'})
+                </span>
                 <b>{money(shippingFee)}</b>
               </div>
               <div className="fee-row">
@@ -657,7 +682,15 @@ export function ShippingCheckoutPanel({
                 <b>{money(0)}</b>
               </div>
               <div className="fee-row">
+                <span>Phí trả hàng</span>
+                <b>{money(0)}</b>
+              </div>
+              <div className="fee-row">
                 <span>Phí hàng đổi</span>
+                <b>{money(0)}</b>
+              </div>
+              <div className="fee-row">
+                <span>Phí đổi địa chỉ</span>
                 <b>{money(0)}</b>
               </div>
               <div className="fee-row">
@@ -665,19 +698,35 @@ export function ShippingCheckoutPanel({
                 <b>{money(0)}</b>
               </div>
               <div className="fee-row total">
-                <span>Tổng phí vận chuyển <Info size={12} /></span>
+                <span>
+                  Tổng phí vận chuyển <Info size={12} />
+                </span>
                 <b className="green">{money(shippingFee)}</b>
               </div>
               <div className="fee-row">
-                <span>Tiền thu người nhận hàng</span>
-                <b className="red">{money(value.cod || 0)}</b>
+                <span>Tiền thu hộ</span>
+                <b>{money(value.cod || 0)}</b>
+              </div>
+              <div className="fee-row">
+                <span>Tiền thu người nhận</span>
+                <b className="red">
+                  {money(
+                    value.payer === 'sender' ? value.cod || 0 : (value.cod || 0) + shippingFee,
+                  )}
+                </b>
               </div>
             </div>
 
             <div className="shipping-submit-area">
               <label className="create-terms-choice">
-                <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} />
-                <span>Tôi đã đọc và đồng ý với <b>Điều khoản &amp; quy định</b></span>
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(event) => setAgreed(event.target.checked)}
+                />
+                <span>
+                  Tôi đã đọc và đồng ý với <b>Điều khoản &amp; quy định</b>
+                </span>
               </label>
               <Button
                 type="submit"
@@ -724,7 +773,9 @@ export function ShippingCheckoutPanel({
                   className={selectionMode === mode.value ? 'selected' : ''}
                   onClick={() => setSelectionMode(mode.value)}
                 >
-                  <span className="config-radio">{selectionMode === mode.value && <Check size={13} />}</span>
+                  <span className="config-radio">
+                    {selectionMode === mode.value && <Check size={13} />}
+                  </span>
                   <span>
                     <strong>{mode.title}</strong>
                     <small>{mode.description}</small>
@@ -757,7 +808,9 @@ export function ShippingCheckoutPanel({
                 <MapPin size={18} />
                 <div>
                   <strong>Địa chỉ lấy riêng theo nhà vận chuyển</strong>
-                  <span>Mặc định dùng địa chỉ kho; chỉ bật khi muốn NVC tới một điểm lấy khác.</span>
+                  <span>
+                    Mặc định dùng địa chỉ kho; chỉ bật khi muốn NVC tới một điểm lấy khác.
+                  </span>
                 </div>
               </div>
               {[
@@ -782,7 +835,9 @@ export function ShippingCheckoutPanel({
                   <CarrierMark carrier={item.carrier} />
                   <div>
                     <strong>{item.carrier}</strong>
-                    <span>{item.enabled ? 'Dùng địa chỉ lấy riêng' : 'Dùng địa chỉ kho mặc định'}</span>
+                    <span>
+                      {item.enabled ? 'Dùng địa chỉ lấy riêng' : 'Dùng địa chỉ kho mặc định'}
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -801,7 +856,11 @@ export function ShippingCheckoutPanel({
                         placeholder="Nhập địa chỉ bưu cục/điểm lấy riêng"
                       />
                       {item.address && (
-                        <button type="button" onClick={() => item.setAddress('')} aria-label="Xóa địa chỉ">
+                        <button
+                          type="button"
+                          onClick={() => item.setAddress('')}
+                          aria-label="Xóa địa chỉ"
+                        >
                           <X size={14} />
                         </button>
                       )}
@@ -814,8 +873,8 @@ export function ShippingCheckoutPanel({
             <div className="carrier-config-security">
               <ShieldCheck size={16} />
               <span>
-                Chuyển phương án dự phòng chỉ được thực hiện khi chuyến cũ đã thất bại rõ ràng,
-                đã hủy thành công hoặc đã đối soát không tồn tại.
+                Chuyển phương án dự phòng chỉ được thực hiện khi chuyến cũ đã thất bại rõ ràng, đã
+                hủy thành công hoặc đã đối soát không tồn tại.
               </span>
             </div>
           </div>

@@ -4831,6 +4831,10 @@ a:focus-visible {
   box-sizing: border-box;
   word-break: break-word;
 }
+.order-results table td.table-primary-cell {
+  vertical-align: middle !important;
+  text-align: left !important;
+}
 .order-results table th {
   padding: 12px 6px !important;
   box-sizing: border-box;
@@ -4842,6 +4846,10 @@ a:focus-visible {
   line-height: 1.3;
   vertical-align: middle;
   white-space: normal;
+}
+.order-results table th.table-heading-left {
+  text-align: left;
+  vertical-align: middle;
 }
 .order-results th.customer-collection-column,
 .order-results td.customer-collection-column,
@@ -5513,12 +5521,45 @@ a:focus-visible {
 .order-results.internal-order-results table,
 .internal-order-results table {
   width: max-content !important;
-  min-width: 1760px !important;
+  min-width: 1400px !important;
   table-layout: fixed !important;
 }
 .internal-order-results table th,
 .internal-order-results table td {
-  padding: 12px 10px !important;
+  padding: 8px 7px !important;
+}
+.internal-order-results table {
+  font-size: 12px;
+}
+.internal-order-results .cell-item-row,
+.internal-order-results .cell-item-row-top {
+  gap: 5px;
+  font-size: 12px;
+}
+.internal-order-results .table-customer-cell,
+.internal-order-results .table-order-info-cell,
+.internal-order-results .table-shop-cell {
+  gap: 3px;
+}
+.internal-order-results .table-shop-cell,
+.internal-order-results .table-shop-name-row,
+.internal-order-results .shop-name-bold {
+  min-width: 0;
+  max-width: 100%;
+}
+.internal-order-results .table-shop-name-row {
+  overflow: hidden;
+}
+.internal-order-results .shop-name-bold {
+  font-size: 12px;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.internal-order-results .table-cell-date,
+.internal-order-results .address-sub {
+  font-size: 10.5px;
 }
 .table-shop-cell {
   display: flex;
@@ -5533,20 +5574,8 @@ a:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.shop-code-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #475569;
-  width: fit-content;
-}
 .shop-phone-sub {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748b;
 }
 .warehouse-tag {
@@ -5591,13 +5620,13 @@ a:focus-visible {
 }
 .internal-carrier-stage-row {
   display: grid;
-  grid-template-columns: 38px 24px minmax(100px, 1fr);
+  grid-template-columns: 34px 22px minmax(90px, 1fr);
   align-items: center;
   gap: 5px;
-  width: min(100%, 240px);
-  max-width: 240px;
-  min-height: 42px;
-  padding: 4px 6px;
+  width: min(100%, 205px);
+  max-width: 205px;
+  min-height: 38px;
+  padding: 3px 5px;
   border: 1px solid #dfe5ee;
   border-left: 3px solid #94a3b8;
   border-radius: 6px;
@@ -5662,7 +5691,7 @@ a:focus-visible {
 }
 .internal-stage-carrier-copy strong {
   overflow: hidden;
-  font-size: 10.5px;
+  font-size: 10px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;

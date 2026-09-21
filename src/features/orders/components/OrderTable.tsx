@@ -415,9 +415,9 @@ export function OrderTable({
             <tr>
               <th
                 style={{
-                  width: isInternal ? 44 : '3.5%',
-                  minWidth: isInternal ? 44 : undefined,
-                  paddingLeft: 12,
+                  width: isInternal ? 36 : '3.5%',
+                  minWidth: isInternal ? 36 : undefined,
+                  paddingLeft: isInternal ? 8 : 12,
                 }}
               >
                 <input
@@ -430,50 +430,56 @@ export function OrderTable({
                 />
               </th>
               <th
-                style={{ width: isInternal ? 160 : '12%', minWidth: isInternal ? 160 : undefined }}
+                className="table-heading-left"
+                style={{ width: isInternal ? 140 : '12%', minWidth: isInternal ? 140 : undefined }}
               >
                 Mã Đơn Hàng
               </th>
               {isInternal ? (
                 <>
-                  <th style={{ width: 210, minWidth: 210 }}>Cửa Hàng / Shop</th>
-                  <th style={{ width: 250, minWidth: 250 }}>Người Nhận</th>
+                  <th className="table-heading-left" style={{ width: 160, minWidth: 160 }}>
+                    Cửa Hàng / Shop
+                  </th>
+                  <th className="table-heading-left" style={{ width: 220, minWidth: 220 }}>
+                    Người Nhận
+                  </th>
                 </>
               ) : (
                 <th style={{ width: '17%' }}>Khách Hàng</th>
               )}
               <th
-                style={{ width: isInternal ? 180 : '13%', minWidth: isInternal ? 180 : undefined }}
+                className="table-heading-left"
+                style={{ width: isInternal ? 155 : '13%', minWidth: isInternal ? 155 : undefined }}
               >
                 Thông Tin Đơn Hàng
               </th>
               <th
                 className="col-shipping"
-                style={{ width: isInternal ? 270 : '15%', minWidth: isInternal ? 270 : undefined }}
+                style={{ width: isInternal ? 230 : '15%', minWidth: isInternal ? 230 : undefined }}
               >
                 {isInternal ? 'NVC & trạng thái từng chặng' : 'Thông Tin Vận Chuyển'}
               </th>
               <th
                 className="customer-collection-column"
-                style={{ width: isInternal ? 130 : '9.5%', minWidth: isInternal ? 130 : undefined }}
+                style={{ width: isInternal ? 110 : '9.5%', minWidth: isInternal ? 110 : undefined }}
               >
                 Tiền Thu Khách
               </th>
               <th
                 className="order-value-column"
-                style={{ width: isInternal ? 120 : '7.5%', minWidth: isInternal ? 120 : undefined }}
+                style={{ width: isInternal ? 105 : '7.5%', minWidth: isInternal ? 105 : undefined }}
               >
                 Trị Giá Hàng
               </th>
               <th
                 className="order-status-column"
-                style={{ width: isInternal ? 160 : '13%', minWidth: isInternal ? 160 : undefined }}
+                style={{ width: isInternal ? 140 : '13%', minWidth: isInternal ? 140 : undefined }}
               >
                 Trạng Thái Đơn Hàng
               </th>
               <th
                 className="order-actions-column"
-                style={{ width: isInternal ? 120 : '9%', minWidth: isInternal ? 120 : undefined }}
+                style={{ width: isInternal ? 100 : '9%', minWidth: isInternal ? 100 : undefined }}
               >
                 Tác Vụ
               </th>
@@ -506,7 +512,7 @@ export function OrderTable({
                   </td>
 
                   {/* Cột 1: Mã Đơn Hàng */}
-                  <td>
+                  <td className="table-primary-cell">
                     <div className="table-order-id-cell">
                       <span
                         className="order-id-link"
@@ -529,15 +535,15 @@ export function OrderTable({
 
                   {/* Cột Cửa Hàng / Shop (Dành riêng cho Nội bộ) */}
                   {isInternal && (
-                    <td>
+                    <td className="table-primary-cell">
                       <div className="table-shop-cell">
-                        <div className="cell-item-row">
+                        <div className="cell-item-row table-shop-name-row">
                           <Store size={14} className="cell-icon-slate" />
-                          <span className="shop-name-bold">{order.shopName || 'AB Shop'}</span>
-                        </div>
-                        <div className="cell-item-row">
-                          <span className="shop-code-pill">
-                            {order.shopId || order.clientCode || 'S275518'}
+                          <span
+                            className="shop-name-bold"
+                            title={order.shopName || 'AB Shop'}
+                          >
+                            {order.shopName || 'AB Shop'}
                           </span>
                         </div>
                         {order.shopPhone && (
@@ -556,7 +562,7 @@ export function OrderTable({
                   )}
 
                   {/* Cột Người Nhận / Khách Hàng */}
-                  <td>
+                  <td className="table-primary-cell">
                     <div className="table-customer-cell">
                       <div className="cell-item-row">
                         <User size={14} className="cell-icon-slate" />
@@ -591,7 +597,7 @@ export function OrderTable({
                   </td>
 
                   {/* Cột 3: Thông Tin Đơn Hàng (Package, Scale - Đã bỏ ghi chú) */}
-                  <td>
+                  <td className="table-primary-cell">
                     <div className="table-order-info-cell">
                       <div className="cell-item-row">
                         <Package size={14} className="cell-icon-slate" />

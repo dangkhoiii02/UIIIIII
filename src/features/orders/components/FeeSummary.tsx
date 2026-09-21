@@ -46,16 +46,23 @@ export function FeeSummary({
           Đổi / Lấy hàng về
         </label>
       </Card>
-      <Card title="Cước phí" icon={<CircleDollarSign size={18} />}>
+      <Card title="Phí và tiền thu hộ" icon={<CircleDollarSign size={18} />}>
         <div className="fee-row">
-          <span>Giá trị hàng hóa</span>
+          <span>Trị giá hàng</span>
           <b>{money(value.value || 0)}</b>
         </div>
         <div className="fee-row">
-          <span>Khối lượng tính cước</span>
+          <span>Khối lượng</span>
           <b>{billableWeight(value) || 0} gr</b>
         </div>
-        {['Phí giao hàng', 'Phí bảo hiểm', 'Phí hàng đổi', 'Phí thu hộ'].map((label) => (
+        {[
+          `Phí giao hàng (${value.payer === 'sender' ? 'Cấn trừ COD' : 'Người nhận trả'})`,
+          'Phí bảo hiểm',
+          'Phí trả hàng',
+          'Phí hàng đổi',
+          'Phí đổi địa chỉ',
+          'Phí thu hộ',
+        ].map((label) => (
           <div className="fee-row" key={label}>
             <span>{label}</span>
             <b>0 đ</b>

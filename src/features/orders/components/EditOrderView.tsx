@@ -52,6 +52,7 @@ export function EditOrderView({ order, onSave, onBack }: EditOrderViewProps) {
     payer: order.payer || 'sender',
     inspection: order.inspection || 'view',
     returnGoods: order.returnGoods || false,
+    shippingFee: order.shippingFee,
   });
 
   const update = (patch: Partial<OrderInput>) => {
@@ -71,7 +72,7 @@ export function EditOrderView({ order, onSave, onBack }: EditOrderViewProps) {
   };
 
   const currentWeight = billableWeight(formData) || formData.weight || 750;
-  const shippingFee = 30000;
+  const shippingFee = formData.shippingFee ?? 30000;
   const isSenderPay = formData.payer === 'sender';
 
   return (
@@ -357,19 +358,19 @@ export function EditOrderView({ order, onSave, onBack }: EditOrderViewProps) {
             {/* Fee Details List */}
             <div className="fee-details-list">
               <div className="fee-line">
-                <span>Giá trị hàng hóa</span>
+                <span>Trị giá hàng</span>
                 <strong>{money(formData.value || 0)}</strong>
               </div>
 
               <div className="fee-line">
                 <span>
-                  Khối lượng tính cước <Info size={13} className="inline-info-icon" />
+                  Khối lượng <Info size={13} className="inline-info-icon" />
                 </span>
                 <strong>{currentWeight} gr</strong>
               </div>
 
               <div className="fee-line">
-                <span>Phí giao hàng ({isSenderPay ? 'Người gửi trả' : 'Người nhận trả'})</span>
+                <span>Phí giao hàng ({isSenderPay ? 'Cấn trừ COD' : 'Người nhận trả'})</span>
                 <strong>{money(shippingFee)}</strong>
               </div>
 
@@ -379,7 +380,17 @@ export function EditOrderView({ order, onSave, onBack }: EditOrderViewProps) {
               </div>
 
               <div className="fee-line">
+                <span>Phí trả hàng</span>
+                <strong>0 đ</strong>
+              </div>
+
+              <div className="fee-line">
                 <span>Phí hàng đổi</span>
+                <strong>0 đ</strong>
+              </div>
+
+              <div className="fee-line">
+                <span>Phí đổi địa chỉ</span>
                 <strong>0 đ</strong>
               </div>
 

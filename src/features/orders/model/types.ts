@@ -28,6 +28,8 @@ export interface OrderInput {
   fulfillmentPlan?: 'LOCAL_SUPERSHIP' | 'LOCAL_PARTNER' | 'DIRECT_CARRIER';
   selectedCarrier?: string;
   selectedService?: string;
+  /** Phí giao hàng đã báo giá cho phương án vận chuyển đang chọn. */
+  shippingFee?: number;
   carrierSelectionMode?: string;
   pickupAddressOverride?: string;
   returnAddressOverride?: string;

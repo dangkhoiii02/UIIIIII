@@ -854,7 +854,7 @@ function seedStages(
       stages.push({
         key: 'refund',
         title: 'Trả cuối',
-        carrier: 'J&T Express',
+        carrier: 'SuperShip',
         tracking: finalReturnTracking,
         status: phase === 'returned' ? 'completed' : code === 'SPF-1101' ? 'pending' : 'active',
         carrierStatusText: canonicalStatus,
@@ -1134,7 +1134,13 @@ export function createPersistentOrderRepository(seed?: Order[]): OrderRepository
       order.product,
       order.selectedCarrier,
       order.shippingInfo?.carrierStatusText,
-      order.shippingInfo?.stages?.length || 0,
+      order.shippingInfo?.stages?.map((stage) => [
+        stage.key,
+        stage.carrier,
+        stage.tracking,
+        stage.status,
+        stage.stageCode,
+      ]) || [],
       order.statusHistory?.length || 0,
     ]),
   );

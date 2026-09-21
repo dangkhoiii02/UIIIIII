@@ -575,7 +575,11 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
         name: 'Lấy hàng tại Shop',
         carrier: instantStage?.carrier || deliveryCarrier,
         code: instantStage?.tracking || deliveryCode,
-        status: isDriverNotFound ? 'Không tìm được tài xế' : isPickedUp ? 'Đã lấy hàng' : 'Đang lấy hàng',
+        status: isDriverNotFound
+          ? 'Không tìm được tài xế'
+          : isPickedUp
+            ? 'Đã lấy hàng'
+            : 'Đang lấy hàng',
         state: isDriverNotFound ? 'error' : isPickedUp ? 'done' : 'current',
         flowNote: 'NVC hỏa tốc lấy trực tiếp tại Shop',
         events: pickupEvents.map(toJourneyEvent),
@@ -589,11 +593,10 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
           ? 'Đã giao hàng'
           : isDriverNotFound
             ? 'Chưa bắt đầu'
-          : isPickedUp
-            ? order.instantTracking?.statusLabel || 'Đang giao hàng'
-            : 'Chưa bắt đầu',
+            : isPickedUp
+              ? order.instantTracking?.statusLabel || 'Đang giao hàng'
+              : 'Chưa bắt đầu',
         state: isDelivered ? 'done' : isPickedUp ? 'current' : 'pending',
-        flowNote: 'Giao trực tiếp, không qua kho SuperShip',
         events: deliveryEvents.map(toJourneyEvent),
       },
     ];
@@ -1023,7 +1026,9 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
 function getDetailActionHistory(order: Order): ActionHistoryItem[] {
   if (order.statusHistory?.length) {
     return [...order.statusHistory]
-      .sort((left, right) => new Date(right.changedAt).getTime() - new Date(left.changedAt).getTime())
+      .sort(
+        (left, right) => new Date(right.changedAt).getTime() - new Date(left.changedAt).getTime(),
+      )
       .map((entry, index) => ({
         id: 10_000 + index,
         actor: 'SuperPlatform',
@@ -1373,6 +1378,8 @@ export default function OrderDetailPage() {
   }
 
   const permission = (capability: OrderCapability) => getOrderPermission(viewer, order, capability);
+  const shopShippingFee = order.shippingFee ?? 0;
+  const shopRecipientAmount = order.payer === 'sender' ? order.cod : order.cod + shopShippingFee;
 
   const openSupportRequest = (category = 'Đơn Hàng', content = '') => {
     setSupportPreset({ category, content });
@@ -1490,7 +1497,9 @@ export default function OrderDetailPage() {
             note: 'Kiện hàng đã được giao an toàn tại địa chỉ người nhận.',
           },
         ];
-  const journeyStages = getDetailJourneyStages(order);
+  const journeyStages = getDetailJourneyStages(order).filter(
+    (stage) => stage.state !== 'pending' && stage.status !== 'Chưa bắt đầu',
+  );
   const printActions: ActionHistoryItem[] = [...(order.printHistory || [])]
     .reverse()
     .map((record, index) => ({
@@ -1774,7 +1783,12 @@ export default function OrderDetailPage() {
                 </div>
                 <div className="order-contact-row">
                   <span className="order-contact-text">
-                    <b>S275518 - SPAI - CÔNG TY TEST 1</b> | Bùi Duy Kha -{' '}
+                    <b>
+                      {isInternal
+                        ? order.shopName || 'Cửa hàng'
+                        : 'S275518 - SPAI - CÔNG TY TEST 1'}
+                    </b>{' '}
+                    | Bùi Duy Kha -{' '}
                     {showPhoneSender ? '0399888077' : '039****077'}
                   </span>
                   <button
@@ -1813,8 +1827,7 @@ export default function OrderDetailPage() {
                     <div className="internal-ops-row">
                       <span className="ops-row-label">SHOP SỞ HỮU</span>
                       <div className="ops-row-val">
-                        <strong>{order.shopId || 'S275518'}</strong>
-                        <small>{order.shopName || order.clientCode || 'AB Shop'}</small>
+                        <strong>{order.shopName || 'AB Shop'}</strong>
                       </div>
                     </div>
                     <div className="internal-ops-row">
@@ -2058,7 +2071,9 @@ export default function OrderDetailPage() {
                           </div>
                           <div className="route-leg-info">
                             <strong className="route-leg-carrier-name">{leg.carrier}</strong>
-                            {isInternal && leg.stageCode && <small>Mã chặng: {leg.stageCode}</small>}
+                            {isInternal && leg.stageCode && (
+                              <small>Mã chặng: {leg.stageCode}</small>
+                            )}
                             <div className="route-leg-waybill-wrap">
                               <code>{leg.code || 'NVC chưa cấp mã vận đơn'}</code>
                               {leg.code && (
@@ -2112,14 +2127,14 @@ export default function OrderDetailPage() {
                             ? 'Trạng thái'
                             : order.instantTracking.state === 'DRIVER_NOT_FOUND'
                               ? 'Phân bổ tài xế'
-                            : 'Dự kiến tới'}
+                              : 'Dự kiến tới'}
                         </small>
                         <strong>
                           {order.instantTracking.state === 'DELIVERED'
                             ? 'Đã giao hàng'
                             : order.instantTracking.state === 'DRIVER_NOT_FOUND'
                               ? 'Thất bại'
-                            : formatInstantEta(order.instantTracking.etaMinutes)}
+                              : formatInstantEta(order.instantTracking.etaMinutes)}
                         </strong>
                       </span>
                       <span>
@@ -2130,7 +2145,7 @@ export default function OrderDetailPage() {
                             ? '0 km'
                             : order.instantTracking.state === 'DRIVER_NOT_FOUND'
                               ? 'Chưa bắt đầu'
-                            : formatInstantDistance(order.instantTracking.remainingDistanceKm)}
+                              : formatInstantDistance(order.instantTracking.remainingDistanceKm)}
                         </strong>
                       </span>
                     </div>
@@ -2183,6 +2198,7 @@ export default function OrderDetailPage() {
             </div>
 
             {/* Card 2: Hành trình đơn hàng theo từng chặng */}
+            {journeyStages.length > 0 && (
             <div className="order-card">
               <div className="order-card-header">
                 <div className="card-header-left-title">
@@ -2304,6 +2320,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Card 3: Phí và tiền thu hộ */}
             <div className="order-card">
@@ -2311,71 +2328,135 @@ export default function OrderDetailPage() {
                 <div className="card-header-icon-box slate">
                   <Receipt size={16} />
                 </div>
-                <h3 className="order-card-header-title">Giá trị, COD và đối soát</h3>
+                <h3 className="order-card-header-title">Phí và tiền thu hộ</h3>
               </div>
               <div className="order-card-body">
-                <div className="fee-breakdown-table">
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">
-                      Trị giá hàng <Info size={12} className="fee-info-icon" />
-                    </span>
-                    <span className="fee-item-val-bold">{money(order.value)}</span>
+                {isInternal ? (
+                  <div className="fee-breakdown-table">
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">
+                        Trị giá hàng <Info size={12} className="fee-info-icon" />
+                      </span>
+                      <span className="fee-item-val-bold">{money(order.value)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Khối lượng</span>
+                      <span className="fee-item-val-bold">{order.weight} gr</span>
+                    </div>
+
+                    <div className="fee-item-divider" />
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Tiền COD cần thu</span>
+                      <span className="fee-item-val-bold">{money(order.cod)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Đã thực thu từ người nhận</span>
+                      <span className="fee-item-val-green">
+                        {money(order.collectedAmount ?? 0)}
+                      </span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Trạng thái thu COD</span>
+                      <span className="fee-item-val-bold">
+                        {COD_COLLECTION_LABELS[order.codCollectionStatus ?? 1]}
+                      </span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Đã đối soát cho Shop</span>
+                      <span className="fee-item-val-green">{money(order.settledAmount ?? 0)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Trạng thái đối soát COD</span>
+                      <span className="fee-item-val-bold">
+                        {COD_SETTLEMENT_LABELS[order.codSettlementStatus ?? 1]}
+                      </span>
+                    </div>
+
+                    <div className="fee-item-divider" />
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Tiền bồi thường được phê duyệt</span>
+                      <span className="fee-item-val-green">
+                        {money(order.compensationAmount ?? 0)}
+                      </span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Trạng thái bồi thường</span>
+                      <span className="fee-item-val-bold">
+                        {typeof order.compensationStatus === 'number'
+                          ? COMPENSATION_LABELS[order.compensationStatus]
+                          : order.compensationStatus || 'Không phát sinh'}
+                      </span>
+                    </div>
                   </div>
+                ) : (
+                  <div className="fee-breakdown-table">
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Trị giá hàng</span>
+                      <span className="fee-item-val-bold">{money(order.value)}</span>
+                    </div>
 
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Khối lượng</span>
-                    <span className="fee-item-val-bold">{order.weight} gr</span>
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Khối lượng</span>
+                      <span className="fee-item-val-bold">{order.weight} gr</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">
+                        Phí giao hàng ({order.payer === 'sender' ? 'Cấn trừ COD' : 'Người nhận trả'}
+                        )
+                      </span>
+                      <span className="fee-item-val-bold">{money(shopShippingFee)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Phí bảo hiểm</span>
+                      <span className="fee-item-val-bold">{money(0)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Phí trả hàng</span>
+                      <span className="fee-item-val-bold">{money(0)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Phí hàng đổi</span>
+                      <span className="fee-item-val-bold">{money(0)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Phí đổi địa chỉ</span>
+                      <span className="fee-item-val-bold">{money(0)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Phí thu hộ</span>
+                      <span className="fee-item-val-bold">{money(0)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Tổng phí vận chuyển</span>
+                      <span className="fee-item-val-bold">{money(shopShippingFee)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Tiền thu hộ</span>
+                      <span className="fee-item-val-bold">{money(order.cod)}</span>
+                    </div>
+
+                    <div className="fee-item-row">
+                      <span className="fee-item-label">Tiền thu người nhận</span>
+                      <span className="fee-item-val-bold">{money(shopRecipientAmount)}</span>
+                    </div>
                   </div>
-
-                  <div className="fee-item-divider" />
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Tiền COD cần thu</span>
-                    <span className="fee-item-val-bold">{money(order.cod)}</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Đã thực thu từ người nhận</span>
-                    <span className="fee-item-val-green">{money(order.collectedAmount ?? 0)}</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Trạng thái thu COD</span>
-                    <span className="fee-item-val-bold">
-                      {COD_COLLECTION_LABELS[order.codCollectionStatus ?? 1]}
-                    </span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Đã đối soát cho Shop</span>
-                    <span className="fee-item-val-green">{money(order.settledAmount ?? 0)}</span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Trạng thái đối soát COD</span>
-                    <span className="fee-item-val-bold">
-                      {COD_SETTLEMENT_LABELS[order.codSettlementStatus ?? 1]}
-                    </span>
-                  </div>
-
-                  <div className="fee-item-divider" />
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Tiền bồi thường được phê duyệt</span>
-                    <span className="fee-item-val-green">
-                      {money(order.compensationAmount ?? 0)}
-                    </span>
-                  </div>
-
-                  <div className="fee-item-row">
-                    <span className="fee-item-label">Trạng thái bồi thường</span>
-                    <span className="fee-item-val-bold">
-                      {typeof order.compensationStatus === 'number'
-                        ? COMPENSATION_LABELS[order.compensationStatus]
-                        : order.compensationStatus || 'Không phát sinh'}
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 

@@ -635,7 +635,7 @@ export function adaptMockOrderDto(dto: MockOrderDto): Order {
     },
     clientCode: dto.pricing_code,
     shopId: dto.shop_id,
-    shopName: dto.sender?.name || 'Shop dataseed',
+    shopName: dto.sender?.name || 'Cửa hàng Gia dụng Minh Khang',
     shopPhone: dto.sender?.phone || '',
     sourceChannel: dto.created_channel.toLocaleLowerCase('vi'),
     serviceType: isInstant ? 'instant' : dto.service_codes.join(','),

@@ -26,7 +26,10 @@ describe('mock Order API fixture', () => {
     expect(stages.some((stage) => stage.tracking === 'GY8YLSDK')).toBe(true);
     expect(stages.some((stage) => stage.tracking === 'SPXVN066263841279')).toBe(true);
     expect(stages.some((stage) => stage.tracking === 'STGS983264RT.826941743')).toBe(true);
-    expect(stages.some((stage) => stage.tracking === '999800060099893')).toBe(true);
+    expect(stages.some((stage) => stage.tracking === '802808938576')).toBe(true);
+    expect(orders.every((order) => !/\d/.test(order.name) && !/\d/.test(order.shopName || ''))).toBe(
+      true,
+    );
   });
 
   it('exposes the six COD, settlement and compensation projections from orders', () => {
@@ -165,6 +168,46 @@ describe('mock Order API fixture', () => {
     expect(o9.shippingInfo?.stages?.map((s) => s.key)).toEqual(['pickup', 'delivery']);
     expect(o9.shippingInfo?.stages?.[0]).toMatchObject({ carrier: 'BEST Express', status: 'active', key: 'pickup' });
     expect(o9.shippingInfo?.stages?.[1]).toMatchObject({ carrier: 'BEST Express', status: 'pending', key: 'delivery' });
+  });
+
+  it('keeps the final-return carrier policy aligned with the DataSeed', () => {
+    const orders = getMockApiOrders();
+    const specialRoute = orders.find((item) => item.id === '9209190000005');
+    const spxRoute = orders.find((item) => item.id === '9209190000006');
+    const jtRoute = orders.find((item) => item.id === '9209190000007');
+
+    expect(specialRoute?.shippingInfo?.stages?.map((stage) => stage.carrier)).toEqual([
+      'SuperShip',
+      'GHN',
+      'BEST Express',
+      'SuperShip',
+    ]);
+    expect(spxRoute?.shippingInfo?.stages?.slice(1).map((stage) => stage.carrier)).toEqual([
+      'SPX Express',
+      'SPX Express',
+      'SPX Express',
+    ]);
+    expect(jtRoute?.shippingInfo?.stages?.slice(1).map((stage) => stage.carrier)).toEqual([
+      'J&T Express',
+      'J&T Express',
+      'J&T Express',
+    ]);
+  });
+
+  it('uses SuperShip for the final-return leg of SPF-1101 through SPF-1108 showcase orders', () => {
+    const orders = getMockApiOrders().filter((order) => /^SPF-11/.test(order.spfCode || ''));
+
+    expect(orders).toHaveLength(8);
+    expect(
+      orders.every((order) =>
+        order.shippingInfo?.stages?.some(
+          (stage) =>
+            stage.key === 'refund' &&
+            stage.carrier === 'SuperShip' &&
+            stage.isSuperShip === true,
+        ),
+      ),
+    ).toBe(true);
   });
 
   it('supports the active instant delivery scenario (SPF-0801) with Green SM Express', () => {
