@@ -30,6 +30,9 @@ describe('mock Order API fixture', () => {
     expect(orders.every((order) => !/\d/.test(order.name) && !/\d/.test(order.shopName || ''))).toBe(
       true,
     );
+    expect(orders.every((order) => order.product.trim() && !/kiểm thử/i.test(order.product))).toBe(
+      true,
+    );
   });
 
   it('exposes the six COD, settlement and compensation projections from orders', () => {
