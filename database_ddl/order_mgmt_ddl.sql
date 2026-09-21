@@ -41,6 +41,12 @@ CREATE TABLE orders (
     "configuration_decision_ref" varchar(150) NOT NULL,
     "pricing_code" varchar(64) NOT NULL,
     "cod_amount" bigint DEFAULT 0 NOT NULL,
+    "collected_amount" bigint DEFAULT 0 NOT NULL,
+    "cod_collection_status" smallint DEFAULT 1 NOT NULL,
+    "settled_amount" bigint DEFAULT 0 NOT NULL,
+    "cod_settlement_status" smallint DEFAULT 1 NOT NULL,
+    "compensation_amount" bigint DEFAULT 0 NOT NULL,
+    "compensation_status" smallint DEFAULT 1 NOT NULL,
     "inspection_type" smallint NOT NULL,
     "fee_payer" smallint NOT NULL,
     "pickup_method" smallint NOT NULL,
@@ -762,16 +768,60 @@ CREATE TABLE outbox_events (
     "created_at" timestamptz DEFAULT now() NOT NULL
 );
 
+CREATE FUNCTION is_valid_carrier_options(options jsonb)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+AS $$
+BEGIN
+    IF jsonb_typeof(options) <> 'array' THEN
+        RETURN false;
+    END IF;
+
+    RETURN NOT EXISTS (
+        SELECT 1
+          FROM jsonb_array_elements(options) option_item
+         WHERE jsonb_typeof(option_item) <> 'object'
+            OR coalesce(jsonb_typeof(option_item -> 'key'), '') <> 'string'
+            OR coalesce(jsonb_typeof(option_item -> 'value'), '') <> 'string'
+            OR coalesce(jsonb_typeof(option_item -> 'name'), '') <> 'string'
+            OR nullif(btrim(option_item ->> 'key'), '') IS NULL
+            OR nullif(btrim(option_item ->> 'value'), '') IS NULL
+            OR nullif(btrim(option_item ->> 'name'), '') IS NULL
+    );
+END
+$$;
+
 -- Domain checks and candidate keys from Database Dictionary v0.25.0.
 ALTER TABLE order_statuses ADD CONSTRAINT chk_order_statuses_sort_no CHECK (sort_no >= 0);
 
 ALTER TABLE orders
     ADD CONSTRAINT chk_orders_order_code CHECK (order_code ~ '^[0-9]{13}$'),
     ADD CONSTRAINT chk_orders_cod_amount CHECK (cod_amount >= 0),
+    ADD CONSTRAINT chk_orders_financial_amounts CHECK (
+        collected_amount >= 0
+        AND collected_amount <= cod_amount
+        AND settled_amount >= 0
+        AND settled_amount <= collected_amount
+        AND compensation_amount >= 0
+    ),
+    ADD CONSTRAINT chk_orders_financial_statuses CHECK (
+        cod_collection_status IN (1,2,3,4,5)
+        AND cod_settlement_status IN (1,2,3,4,5,6)
+        AND compensation_status IN (1,2,3,4,5)
+    ),
     ADD CONSTRAINT chk_orders_options CHECK (inspection_type IN (1,2,3) AND fee_payer IN (1,2) AND pickup_method IN (1,2)),
     ADD CONSTRAINT chk_orders_service_codes CHECK (service_codes <@ ARRAY[1,2]::smallint[] AND array_position(service_codes, NULL) IS NULL),
     ADD CONSTRAINT chk_orders_models CHECK (customer_model IN (1,2,3,4) AND transport_model IN (1,2,3,4) AND selection_mode IN (1,2,3)),
-    ADD CONSTRAINT chk_orders_shipping_config_pair CHECK ((shipping_config_ref IS NULL) = (shipping_config_version IS NULL) AND nullif(btrim(shipping_config_ref), '') IS NOT NULL OR shipping_config_ref IS NULL),
+    ADD CONSTRAINT chk_orders_shipping_config_pair CHECK (
+        (shipping_config_ref IS NULL AND shipping_config_version IS NULL)
+        OR (
+            nullif(btrim(shipping_config_ref), '') IS NOT NULL
+            AND nullif(btrim(shipping_config_version), '') IS NOT NULL
+        )
+    ),
     ADD CONSTRAINT chk_orders_configuration_decision CHECK (btrim(configuration_decision_ref) <> ''),
     ADD CONSTRAINT chk_orders_created_actor CHECK (created_actor_type IN (1,2,3,4) AND (created_actor_type <> 1 OR created_by_identity_id IS NOT NULL)),
     ADD CONSTRAINT chk_orders_actor_fields CHECK (btrim(created_actor_ref) <> '' AND btrim(created_actor_name) <> '' AND btrim(created_application_id) <> '' AND btrim(created_client_id) <> '' AND btrim(correlation_id) <> ''),
@@ -850,7 +900,7 @@ ALTER TABLE leg_services
 ALTER TABLE waybills
     ADD CONSTRAINT chk_waybills_values CHECK (waybill_status IN (1,2,3,4) AND pickup_method IN (1,2) AND fee_payer IN (1,2) AND inspection_type IN (1,2,3)),
     ADD CONSTRAINT chk_waybills_amounts CHECK (cod_amount >= 0 AND collection_amount >= 0 AND declared_value >= 0),
-    ADD CONSTRAINT chk_waybills_options CHECK (jsonb_typeof(carrier_options) = 'array'),
+    ADD CONSTRAINT chk_waybills_options CHECK (is_valid_carrier_options(carrier_options)),
     ADD CONSTRAINT chk_waybills_snapshot CHECK (snapshot_schema_version > 0 AND btrim(snapshot_hash) <> ''),
     ADD CONSTRAINT chk_waybills_carrier_status CHECK (((carrier_status_code IS NULL AND carrier_status_name IS NULL) AND carrier_status_at IS NULL) OR ((carrier_status_code IS NOT NULL OR carrier_status_name IS NOT NULL) AND carrier_status_at IS NOT NULL)),
     ADD CONSTRAINT chk_waybills_reason CHECK ((reason_code IS NULL OR reason_code IN (1,2,3,4,99)) AND (reason_code <> 99 OR nullif(btrim(reason), '') IS NOT NULL)),

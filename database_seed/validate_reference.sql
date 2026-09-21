@@ -26,6 +26,32 @@ BEGIN
         RAISE EXCEPTION 'Order status seed is incomplete: expected %, found %', expected_count, actual_count;
     END IF;
 
+    IF (SELECT count(*) FROM order_statuses WHERE status_code LIKE 'SPF-%') <> expected_count THEN
+        RAISE EXCEPTION 'Order status seed có mã SPF dư ngoài baseline 45 trạng thái';
+    END IF;
+
+    IF EXISTS (
+        SELECT sort_no
+          FROM order_statuses
+         WHERE status_code LIKE 'SPF-%'
+         GROUP BY sort_no
+        HAVING count(*) > 1
+    ) OR (SELECT min(sort_no) FROM order_statuses WHERE status_code LIKE 'SPF-%') <> 1
+       OR (SELECT max(sort_no) FROM order_statuses WHERE status_code LIKE 'SPF-%') <> 45 THEN
+        RAISE EXCEPTION 'Order status seed có sort_no trùng hoặc không liên tục từ 1 đến 45';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM order_statuses
+         WHERE status_code LIKE 'SPF-%'
+           AND is_terminal IS DISTINCT FROM (
+                status_code = ANY (ARRAY['SPF-0201','SPF-0901','SPF-1201','SPF-1202','SPF-1203']::varchar[])
+           )
+    ) THEN
+        RAISE EXCEPTION 'is_terminal không khớp baseline trạng thái Order';
+    END IF;
+
     IF EXISTS (
         SELECT 1
           FROM order_statuses
@@ -41,4 +67,3 @@ SELECT status_code, status_name, status_group, sort_no, is_terminal, is_active
   FROM order_statuses
  WHERE status_code LIKE 'SPF-%'
  ORDER BY sort_no;
-
