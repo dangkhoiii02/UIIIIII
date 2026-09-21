@@ -495,13 +495,13 @@ function synthesizeCanonicalStages(
     const isReturning = dto.status_code.startsWith('SPF-11');
     const returnStatus: ShippingStageItem['status'] = isReturned
       ? 'completed'
-      : isReturning || isPartialDelivery
+      : isReturning
         ? 'active'
         : 'pending';
 
     const returnStatusText = isReturned
       ? 'Chuyển hoàn thành công'
-      : isReturning || isPartialDelivery
+      : isReturning
         ? 'Đang chuyển hoàn về Shop'
         : 'Chờ xác nhận chuyển hoàn';
 
@@ -516,7 +516,7 @@ function synthesizeCanonicalStages(
       isSuperShip: isSuperShipCarrier,
       status: returnStatus,
       carrierStatusText: returnStatusText,
-      carrierStatusCode: isReturned ? 'RETURNED' : isReturning || isPartialDelivery ? 'IN_RETURN' : 'WAITING_RETURN',
+      carrierStatusCode: isReturned ? 'RETURNED' : isReturning ? 'IN_RETURN' : 'WAITING_RETURN',
       carrierUpdatedAt: dto.updated_at,
       webhookEvents: [],
     });

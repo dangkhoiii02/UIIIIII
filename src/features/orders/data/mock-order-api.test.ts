@@ -171,6 +171,11 @@ describe('mock Order API fixture', () => {
     expect(o4.shippingInfo?.stages?.map((s) => s.key)).toEqual(['pickup', 'delivery', 'return']);
     expect(o4.shippingInfo?.stages?.every((s) => s.carrier === 'SPX Express')).toBe(true);
     expect(o4.shippingInfo?.stages?.every((s) => s.tracking === 'SPXVN066263841279')).toBe(true);
+    expect(o4.shippingInfo?.stages?.map((s) => s.status)).toEqual([
+      'completed',
+      'completed',
+      'pending',
+    ]);
 
     // 5. Đơn 9100000000005 (SuperShip): Lấy -> Giao
     const o5 = findOrder('9100000000005');

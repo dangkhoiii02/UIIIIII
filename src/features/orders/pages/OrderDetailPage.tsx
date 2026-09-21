@@ -85,6 +85,7 @@ interface JourneyEvent {
 }
 
 interface JourneyStage {
+  key?: ShippingStageItem['key'];
   flow: string;
   name: string;
   carrier: string;
@@ -497,6 +498,150 @@ function buildFallbackWebhookEvents(
     .reverse();
 }
 
+function cleanJourneyLabel(label: string, carrier: string): string {
+  if (!label || !carrier) return label;
+  const escapedCarrier = carrier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return label.replace(new RegExp(`^${escapedCarrier}\\s*[-–—:]\\s*`, 'i'), '').trim();
+}
+
+function getStageJourneyStatus(order: Order, stage: ShippingStageItem): string {
+  if (stage.status === 'pending') return 'Chưa bắt đầu';
+  if (stage.key === 'pickup' && stage.status === 'completed') {
+    return 'Đã hoàn tất chặng lấy hàng';
+  }
+  if (stage.carrierStatusText) {
+    return cleanJourneyLabel(stage.carrierStatusText, stage.carrier);
+  }
+  if (stage.status === 'completed') {
+    if (stage.key === 'delivery') return 'Đã hoàn tất chặng giao hàng';
+    if (stage.key === 'return') return 'Đã hoàn tất chặng hoàn hàng';
+    return 'Đã hoàn tất chặng trả hàng cuối';
+  }
+  return order.status;
+}
+
+function getStageJourneyEvents(
+  order: Order,
+  stage: ShippingStageItem,
+  status: string,
+): JourneyEvent[] {
+  const webhookEvents = [...(stage.webhookEvents || [])]
+    .sort((left, right) => new Date(left.eventAt).getTime() - new Date(right.eventAt).getTime())
+    .map((event) => ({
+      time: formatDisplayDate(event.eventAt),
+      carrier: stage.carrier,
+      label: cleanJourneyLabel(event.statusText, stage.carrier),
+      visibility: 'shop' as const,
+      rawCode: event.statusCode,
+    }));
+  if (webhookEvents.length) return webhookEvents;
+
+  const milestones: Array<{ at?: string; label: string; rawCode: string }> = [
+    {
+      at: stage.requestSentAt,
+      label: `Đã gửi yêu cầu ${stage.title.toLocaleLowerCase('vi')} tới NVC`,
+      rawCode: 'REQUEST_SENT',
+    },
+    {
+      at: stage.carrierAcceptedAt,
+      label: 'Đã tiếp nhận vận đơn',
+      rawCode: 'CARRIER_ACCEPTED',
+    },
+    {
+      at: stage.carrierUpdatedAt || order.updatedAt || order.createdAt,
+      label: status,
+      rawCode: stage.carrierStatusCode || `${stage.key.toUpperCase()}_STATUS`,
+    },
+  ];
+  const seen = new Set<string>();
+
+  return milestones
+    .filter((milestone): milestone is { at: string; label: string; rawCode: string } =>
+      Boolean(milestone.at),
+    )
+    .filter((milestone) => {
+      const identity = `${milestone.at}|${milestone.label}`;
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    })
+    .sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime())
+    .map((milestone) => ({
+      time: formatDisplayDate(milestone.at),
+      carrier: stage.carrier,
+      label: milestone.label,
+      visibility: 'shop' as const,
+      rawCode: milestone.rawCode,
+    }));
+}
+
+function getReachedJourneyStages(order: Order, stages: JourneyStage[]): JourneyStage[] {
+  if (!stages.length) {
+    return [
+      {
+        flow: 'TRẠNG THÁI HIỆN TẠI',
+        name: 'Tiến trình xử lý đơn hàng',
+        carrier:
+          order.selectedCarrier ||
+          order.shippingInfo?.deliveryCarrier ||
+          order.shippingInfo?.pickupCarrier ||
+          'SuperPlatform',
+        code:
+          order.shippingInfo?.deliveryTracking ||
+          order.shippingInfo?.pickupTracking ||
+          'Chưa có mã vận đơn',
+        status: order.status,
+        state: isSpfFailureStatus(order.spfCode) ? 'error' : 'current',
+        events: [
+          {
+            time: formatDisplayDate(order.updatedAt || order.createdAt),
+            carrier: 'SuperPlatform',
+            label: order.status,
+            visibility: 'shop',
+            rawCode: order.spfCode,
+          },
+        ],
+      },
+    ];
+  }
+
+  const currentKey = order.shippingInfo?.currentStage;
+  const currentIndex = currentKey
+    ? stages.findIndex((stage) => stage.key === currentKey)
+    : -1;
+  const lastReachedIndex = stages.reduce(
+    (latest, stage, index) =>
+      stage.state !== 'pending' && stage.status !== 'Chưa bắt đầu' ? index : latest,
+    currentIndex,
+  );
+  const visibleEndIndex = Math.max(0, lastReachedIndex);
+
+  return stages.slice(0, visibleEndIndex + 1).map((stage, index) => {
+    if (stage.state !== 'pending') return stage;
+    const isCurrent = index === visibleEndIndex;
+    return {
+      ...stage,
+      status: isCurrent ? order.status : 'Đã hoàn tất chặng',
+      state: isCurrent
+        ? isSpfFailureStatus(order.spfCode)
+          ? 'error'
+          : 'current'
+        : 'done',
+      events: stage.events.length
+        ? stage.events
+        : [
+            {
+              time: formatDisplayDate(order.updatedAt || order.createdAt),
+              carrier: stage.carrier,
+              label: isCurrent ? order.status : 'Đã hoàn tất chặng',
+              visibility: 'shop',
+              rawCode: order.spfCode,
+            },
+          ],
+    };
+  });
+}
+
 function getDetailJourneyStages(order: Order): JourneyStage[] {
   const phase = getSpfLifecyclePhase(order.spfCode);
   const isReturn =
@@ -633,37 +778,33 @@ function getDetailJourneyStages(order: Order): JourneyStage[] {
 
   const persistedStages = order.shippingInfo?.stages || [];
   if (persistedStages.length) {
-    return persistedStages.map((stage) => ({
-      flow:
-        stage.key === 'pickup'
-          ? 'LẤY HÀNG'
-          : stage.key === 'delivery'
-            ? 'GIAO HÀNG'
-            : stage.key === 'return'
-              ? 'HOÀN HÀNG'
-              : 'TRẢ HÀNG CUỐI',
-      name: stage.title,
-      carrier: stage.carrier,
-      code: stage.tracking || 'NVC chưa cấp mã vận đơn',
-      status: stage.carrierStatusText || order.status,
-      state:
-        stage.status === 'completed'
-          ? 'done'
-          : stage.status === 'active'
-            ? isSpfFailureStatus(order.spfCode)
-              ? 'error'
-              : 'current'
-            : 'pending',
-      events: [...(stage.webhookEvents || [])]
-        .sort((left, right) => new Date(left.eventAt).getTime() - new Date(right.eventAt).getTime())
-        .map((event) => ({
-          time: formatDisplayDate(event.eventAt),
-          carrier: stage.carrier,
-          label: event.statusText,
-          visibility: 'shop' as const,
-          rawCode: event.statusCode,
-        })),
-    }));
+    return persistedStages.map((stage) => {
+      const status = getStageJourneyStatus(order, stage);
+      return {
+        key: stage.key,
+        flow:
+          stage.key === 'pickup'
+            ? 'LẤY HÀNG'
+            : stage.key === 'delivery'
+              ? 'GIAO HÀNG'
+              : stage.key === 'return'
+                ? 'HOÀN HÀNG'
+                : 'TRẢ HÀNG CUỐI',
+        name: stage.title,
+        carrier: stage.carrier,
+        code: stage.tracking || 'NVC chưa cấp mã vận đơn',
+        status,
+        state:
+          stage.status === 'completed'
+            ? 'done'
+            : stage.status === 'active'
+              ? isSpfFailureStatus(order.spfCode)
+                ? 'error'
+                : 'current'
+              : 'pending',
+        events: getStageJourneyEvents(order, stage, status),
+      };
+    });
   }
 
   if (phase === 'creating' && order.selectedCarrier) {
@@ -1460,9 +1601,7 @@ export default function OrderDetailPage() {
             note: 'Kiện hàng đã được giao an toàn tại địa chỉ người nhận.',
           },
         ];
-  const journeyStages = getDetailJourneyStages(order).filter(
-    (stage) => stage.state !== 'pending' && stage.status !== 'Chưa bắt đầu',
-  );
+  const journeyStages = getReachedJourneyStages(order, getDetailJourneyStages(order));
   const printActions: ActionHistoryItem[] = [...(order.printHistory || [])]
     .reverse()
     .map((record, index) => ({
@@ -1574,7 +1713,7 @@ export default function OrderDetailPage() {
           {/* Left Column (~62% width) */}
           <div className="order-col-left">
             {/* Card 1: Thông tin người nhận */}
-            <div className="order-card">
+            <div className="order-card journey-order-card">
               <div className="order-card-header">
                 <div className="card-header-icon-box green">
                   <MapPin size={16} />
@@ -2154,7 +2293,6 @@ export default function OrderDetailPage() {
             </div>
 
             {/* Card 2: Hành trình đơn hàng theo từng chặng */}
-            {journeyStages.length > 0 && (
             <div className="order-card">
               <div className="order-card-header">
                 <div className="card-header-left-title">
@@ -2253,11 +2391,12 @@ export default function OrderDetailPage() {
                                           <span className={`stage-event-dot ${dotClass}`} />
                                           <div className="stage-event-details">
                                             <span className="stage-event-label">
-                                              <b>{evt.carrier}</b> — {evt.label}
+                                              <b>{evt.carrier}</b>
+                                              <span>{cleanJourneyLabel(evt.label, evt.carrier)}</span>
                                             </span>
+                                            <time className="stage-event-time">{evt.time}</time>
                                           </div>
                                         </div>
-                                        <time className="stage-event-time">{evt.time}</time>
                                       </div>
                                     );
                                   })
@@ -2276,7 +2415,6 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             </div>
-            )}
 
             {/* Card 3: Phí và tiền thu hộ */}
             <div className="order-card">
