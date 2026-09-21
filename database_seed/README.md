@@ -40,6 +40,8 @@ File `test_data/006_ui_current_status_showcase.sql` bổ sung một Order đầy
 mỗi trạng thái chưa có current projection. `SPF-0302/SPF-0303` chỉ dùng NVC tức
 thời GrabExpress/Green SM; các Order này có đủ party, address, goods, measure,
 Stage, service, Waybill, request và tracking event để UI không cần dữ liệu giả.
+Mọi Order showcase luôn có đủ hai chặng `PICKUP` và `DELIVERY`; chặng
+`RETURN`/`FINAL-RETURN` chỉ được sinh khi Order thực sự đi vào luồng hoàn.
 
 ## Quy luật Stage Code
 

@@ -1851,7 +1851,7 @@ SELECT s.sort_no AS status_no,s.status_code,s.status_name,
        substring(s.status_code,5,2)::integer AS phase_no,
        CASE
          WHEN s.status_code='SPF-0302' THEN 2
-         WHEN substring(s.status_code,5,2)::integer <= 5 THEN 1
+         WHEN substring(s.status_code,5,2)::integer <= 5 THEN 2
          WHEN substring(s.status_code,5,2)::integer <= 9 THEN 2
          WHEN substring(s.status_code,5,2)::integer = 10 THEN 3
          ELSE 4
@@ -1887,7 +1887,12 @@ SELECT pg_temp.ui_uuid(status_no,1),'92999999'||lpad(status_no::text,5,'0'),
        pg_temp.ui_uuid(status_no,2),'SOC-UI-'||status_code,status_code,
        CASE WHEN status_code LIKE 'SPF-11%' THEN 1 ELSE primary_carrier_code END,
        CASE WHEN status_code='SPF-0302' THEN 4 ELSE 2 END,
-       CASE WHEN status_code='SPF-0302' THEN 4 WHEN leg_count>1 THEN 2 ELSE 3 END,
+       CASE
+         WHEN status_code='SPF-0302' THEN 4
+         WHEN phase_no<=5 THEN 3
+         WHEN leg_count>1 THEN 2
+         ELSE 3
+       END,
        CASE WHEN status_code='SPF-0302' THEN 2 ELSE 1 END,
        'SHP-CONFIG-UI-'||status_code,'1','CFG-UI-'||status_code,
        CASE WHEN status_code='SPF-0302' THEN 'PRC-HCM-GRAB-INSTANT-2026-09' ELSE 'PRC-UI-'||status_code END,
@@ -1975,7 +1980,7 @@ CREATE TEMP TABLE ui_legs ON COMMIT DROP AS
 SELECT s.*,g.leg_no,
        CASE
          WHEN s.status_code='SPF-0302' THEN 16
-         WHEN g.leg_no=1 AND s.leg_count>1 THEN 1
+         WHEN g.leg_no=1 AND s.leg_count>1 AND s.phase_no>5 THEN 1
          WHEN g.leg_no=2 THEN s.primary_carrier_code
          WHEN g.leg_no=4 AND s.status_code LIKE 'SPF-11%' THEN 1
          WHEN g.leg_no=3 THEN s.primary_carrier_code
@@ -2188,6 +2193,30 @@ BEGIN
       )
   ) THEN
     RAISE EXCEPTION 'SPF-0302/SPF-0303 chỉ được seed cho NVC tức thời 15/16';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM ui_status_scenarios s
+     WHERE NOT EXISTS (
+             SELECT 1 FROM order_legs l
+              WHERE l.order_id=pg_temp.ui_uuid(s.status_no,1) AND l.leg_type=1
+           )
+        OR NOT EXISTS (
+             SELECT 1 FROM order_legs l
+              WHERE l.order_id=pg_temp.ui_uuid(s.status_no,1) AND l.leg_type=2
+           )
+  ) THEN
+    RAISE EXCEPTION 'Mỗi Order showcase phải luôn có đủ chặng PICKUP và DELIVERY';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM ui_status_scenarios s
+      JOIN order_legs l ON l.order_id=pg_temp.ui_uuid(s.status_no,1)
+     WHERE s.phase_no<10 AND l.leg_type IN (3,4)
+  ) THEN
+    RAISE EXCEPTION 'Chặng RETURN/FINAL_RETURN chỉ được xuất hiện khi Order vào luồng hoàn';
   END IF;
 END
 $$;
