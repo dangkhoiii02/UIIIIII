@@ -73,6 +73,22 @@ SELECT s.sort_no AS status_no,s.status_code,s.status_name,
          'Trần Ngọc Bích','Lê Tuấn Anh','Phạm Hà My','Võ Minh Quân','Đặng Ngọc Mai',
          'Nguyễn Hoàng Anh','Dương Khánh Linh','Phan Minh Đức','Lê Thu Trang','Hồ Quốc Nam'
        ]::text[])[s.sort_no] AS return_contact_name,
+       (ARRAY[
+         'Bộ ly thủy tinh chịu nhiệt 350 ml','Bộ sản phẩm chăm sóc da trà xanh','Nồi chiên không dầu 6 lít',
+         'Máy xay sinh tố đa năng 1,5 lít','Bộ ga giường cotton 1,6 m','Đèn bàn LED chống cận',
+         'Bộ nồi inox ba món dùng cho bếp từ','Hộp trà ô long túi lọc 40 gói','Máy hút bụi cầm tay không dây',
+         'Bộ hộp bảo quản thực phẩm thủy tinh','Bộ sách kỹ năng học tập','Giỏ hoa chúc mừng phối màu cam',
+         'Bàn phím cơ không dây chống sốc','Túi đeo chéo da bò màu nâu','Máy hâm sữa điện tử kèm bình giữ nhiệt',
+         'Áo khoác chống nắng sợi tre','Bánh kem sinh nhật vị vani','Bộ vi điều khiển Arduino Uno',
+         'Máy sấy tóc ion âm','Bình giữ nhiệt inox 500 ml','Kệ sách gỗ lắp ráp 5 tầng','Kem chống nắng SPF50+',
+         'Tai nghe Bluetooth chống ồn','Bộ khăn mặt cotton 6 chiếc','Cặp sách học sinh tiểu học',
+         'Máy pha cà phê mini','Chảo chống dính đáy từ 28 cm','Đèn ngủ cảm biến ánh sáng','Bộ ga gối cotton 4 món',
+         'Quạt mini để bàn','Giày thể thao nam cổ thấp','Túi tote canvas dáng đứng','Hạt giống rau củ trồng tại nhà',
+         'Mật ong hoa cà phê 500 ml','Máy lọc không khí mini','Bình sữa em bé 240 ml','Bộ xếp hình gỗ cho bé',
+         'Váy nữ linen cổ vuông','Cà phê rang xay nguyên chất 500 g','Set hộp cơm giữ nhiệt inox',
+         'Camera an ninh IP trong nhà','Bộ tua vít sửa chữa 24 món','Nồi lẩu điện đa năng 3 lít',
+         'Bộ hồ sơ giấy tờ hành chính','Bộ tài liệu văn phòng phẩm'
+       ]::text[])[s.sort_no] AS product_name,
        substring(s.status_code,5,2)::integer AS phase_no,
        CASE
          WHEN s.status_code='SPF-0302' THEN 2
@@ -171,7 +187,7 @@ INSERT INTO order_goods (
   valid_from,version_no,created_at,created_by
 )
 SELECT pg_temp.ui_uuid(status_no,31),pg_temp.ui_uuid(status_no,1),2,
-       CASE WHEN status_code='SPF-0302' THEN 'Hồ sơ cần giao hỏa tốc' ELSE 'Sản phẩm kiểm thử '||status_name END,
+       product_name,
        450000+status_no*1000,'VND',ARRAY[]::smallint[],
        '2026-09-22 00:00:00+00',1,'2026-09-22 00:00:00+00','ui-status-showcase'
   FROM ui_status_scenarios;
@@ -183,7 +199,7 @@ INSERT INTO order_items (
 SELECT pg_temp.ui_uuid(status_no,41),pg_temp.ui_uuid(status_no,1),
        pg_temp.ui_uuid(status_no,31),'ITEM-UI-'||status_no,'PRD-UI-'||status_no,
        'SKU-UI-'||status_no,
-       CASE WHEN status_code='SPF-0302' THEN 'Hồ sơ cần giao hỏa tốc' ELSE 'Sản phẩm kiểm thử '||status_name END,
+       product_name,
        450000+status_no*1000,650+status_no*10,1,'2026-09-22 00:00:00+00'
   FROM ui_status_scenarios;
 
