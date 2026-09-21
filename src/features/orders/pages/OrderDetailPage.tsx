@@ -298,7 +298,7 @@ function getDetailTransportLegs(order: Order): TransportLeg[] {
   return stages.map((stage) => {
     const state: TransportLeg['state'] =
       stage.status === 'completed' ? 'passed' : stage.status === 'active' ? 'active' : 'upcoming';
-    const statusText =
+    const defaultStatusText =
       order.spfCode === 'SPF-0201'
         ? 'Đã hủy'
         : stage.status === 'completed'
@@ -308,6 +308,8 @@ function getDetailTransportLegs(order: Order): TransportLeg[] {
               ? order.status
               : 'Đang xử lý'
             : 'Chưa bắt đầu';
+    const statusText =
+      order.spfCode === 'SPF-0201' ? 'Đã hủy' : stage.carrierStatusText || defaultStatusText;
     const fallbackCarrierStatus: Record<
       ShippingStageItem['key'],
       Record<'completed' | 'active' | 'pending', string>
@@ -1991,7 +1993,7 @@ export default function OrderDetailPage() {
           {/* Right Column (~38% width) */}
           <div className="order-col-right">
             {/* Card 1: Quan hệ chặng, NVC và mã vận đơn (Harmonized match media_1789532965240.png) */}
-            <div className="order-card">
+            <div className="order-card transport-card-shell">
               <div className="order-card-header">
                 <div className="card-header-icon-box red">
                   <Truck size={16} />
@@ -2006,19 +2008,12 @@ export default function OrderDetailPage() {
                   style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
                 >
                   {transportLegs.map((leg) => {
-                    const isDone =
-                      leg.state === 'passed' ||
-                      leg.statusText.includes('thành công') ||
-                      leg.statusText.includes('kết thúc');
-                    const isActive =
-                      leg.state === 'active' ||
-                      leg.statusText.includes('Đang') ||
-                      leg.statusText.includes('Chờ');
-                    const borderClass = isDone
-                      ? 'border-status-done'
-                      : isActive
-                        ? 'border-status-active'
-                        : 'border-status-warn';
+                    const borderClass =
+                      leg.state === 'passed'
+                        ? 'border-status-done'
+                        : leg.state === 'active'
+                          ? 'border-status-active'
+                          : 'border-status-warn';
 
                     return (
                       <div

@@ -598,6 +598,16 @@ h3 {
   display: flex;
   flex-direction: column;
 }
+.order-card.transport-card-shell {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.transport-card-shell .order-card-header {
+  margin-bottom: 12px;
+}
 .order-address-text {
   font-size: 13.5px;
   font-weight: 600;
@@ -5505,9 +5515,6 @@ a:focus-visible {
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
 }
-.shipping-current-status-badge .status-badge-icon {
-  flex-shrink: 0;
-}
 .shipping-current-status-badge.status-tag-amber {
   background: #fff7ed;
   color: #ea580c;
@@ -5555,7 +5562,7 @@ a:focus-visible {
 }
 .order-results.internal-order-results table,
 .internal-order-results table {
-  width: max-content !important;
+  width: 100% !important;
   min-width: 1200px !important;
   table-layout: fixed !important;
 }

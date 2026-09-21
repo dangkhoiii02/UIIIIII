@@ -339,9 +339,10 @@ function synthesizeCanonicalStages(
     dto.status_code.startsWith('SPF-10') ||
     dto.status_code.startsWith('SPF-11') ||
     dto.status_code.startsWith('SPF-12');
+  const needsReturnStage = hasReturn || isPartialDelivery || isReturnStatus;
 
-  // Đơn đã có đầy đủ chặng Lấy hoặc chặng dừng sớm ở Lấy (không thiếu chặng hoàn)
-  if (hasPickup && (!isPartialDelivery || hasReturn)) {
+  // Chỉ giữ nguyên khi dữ liệu đã đủ hai chặng bắt buộc và đủ chặng hoàn nếu phát sinh.
+  if (hasPickup && hasDelivery && (!needsReturnStage || hasReturn)) {
     return rawStages;
   }
 
@@ -439,11 +440,50 @@ function synthesizeCanonicalStages(
           ? 'Chờ tiếp nhận giao hàng'
           : deliveryStage!.carrierStatusText,
     });
+  } else {
+    const isDeliveryCompleted =
+      dto.status_code.startsWith('SPF-09') ||
+      dto.status_code.startsWith('SPF-10') ||
+      dto.status_code.startsWith('SPF-11') ||
+      dto.status_code.startsWith('SPF-12');
+    const isDeliveryActive =
+      dto.status_code.startsWith('SPF-06') ||
+      dto.status_code.startsWith('SPF-07') ||
+      dto.status_code.startsWith('SPF-08');
+    const deliveryStatus: ShippingStageItem['status'] = isDeliveryCompleted
+      ? 'completed'
+      : isDeliveryActive
+        ? 'active'
+        : 'pending';
+
+    stages.push({
+      key: 'delivery',
+      title: 'Giao',
+      stageCode: 'STG-DELIVERY-0001',
+      stageNo: 2,
+      legType: 2,
+      carrier: dto.planned_carrier_name || carrierName,
+      tracking: waybillCode,
+      isSuperShip: (dto.planned_carrier_name || carrierName).toLowerCase().includes('super'),
+      status: deliveryStatus,
+      carrierStatusText:
+        deliveryStatus === 'completed'
+          ? 'Đã kết thúc chặng giao hàng'
+          : deliveryStatus === 'active'
+            ? dto.status_name
+            : 'Chưa bắt đầu chặng giao hàng',
+      carrierStatusCode:
+        deliveryStatus === 'completed'
+          ? 'DELIVERY_COMPLETED'
+          : deliveryStatus === 'active'
+            ? 'IN_DELIVERY'
+            : 'WAITING_DELIVERY',
+      carrierUpdatedAt: dto.updated_at,
+      webhookEvents: [],
+    });
   }
 
   // 3. Chặng Hoàn (nếu có luồng hoàn)
-  const needsReturnStage = hasReturn || isPartialDelivery || isReturnStatus;
-
   if (hasReturn) {
     const returnStage = rawStages.find((s) => s.key === 'return' || s.key === 'refund');
     stages.push({

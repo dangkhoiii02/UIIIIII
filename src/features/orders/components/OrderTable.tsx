@@ -18,11 +18,7 @@ import {
   CalendarDays,
   Copy,
   Truck,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
   Store,
-  Zap,
 } from 'lucide-react';
 import { money } from '@/shared/lib/format';
 import { useToast } from '@/shared/ui/toast-context';
@@ -46,7 +42,6 @@ function renderCarrierStatusBadge(statusText: string) {
   const cleanStatus = getCleanCarrierStatus(statusText);
   const text = statusText.toLowerCase();
   let badgeClass = 'status-tag-blue';
-  let Icon = Truck;
 
   if (
     text.includes('hoãn') ||
@@ -56,18 +51,14 @@ function renderCarrierStatusBadge(statusText: string) {
     text.includes('hoàn')
   ) {
     badgeClass = 'status-tag-amber';
-    Icon = AlertTriangle;
   } else if (text.includes('thành công') || text.includes('đã giao') || text.includes('hoàn tất')) {
     badgeClass = 'status-tag-green';
-    Icon = CheckCircle2;
   } else if (text.includes('lấy') || text.includes('chờ')) {
     badgeClass = 'status-tag-rose';
-    Icon = Clock;
   }
 
   return (
     <div className={`shipping-current-status-badge ${badgeClass}`}>
-      <Icon size={12} className="status-badge-icon" />
       <span>{cleanStatus}</span>
     </div>
   );
@@ -756,7 +747,6 @@ export function OrderTable({
                                 <div
                                   className={`shipping-current-status-badge ${instantStatusTone}`}
                                 >
-                                  <Zap size={12} className="status-badge-icon" />
                                   <span>{statusLabel}</span>
                                 </div>
                               </div>

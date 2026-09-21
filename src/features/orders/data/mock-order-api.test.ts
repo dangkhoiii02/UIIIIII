@@ -9,7 +9,7 @@ describe('mock Order API fixture', () => {
 
     expect(getMockApiMetadata().database).toBe('supership-superplatform-order-db');
     expect(orders).toHaveLength(53);
-    expect(stages).toHaveLength(130);
+    expect(stages).toHaveLength(138);
     expect(events).toHaveLength(151);
     expect(orders.every((order) => /^\d{13}$/.test(order.id))).toBe(true);
   });
@@ -113,6 +113,34 @@ describe('mock Order API fixture', () => {
             Boolean(stage.tracking),
         ),
       ),
+    ).toBe(true);
+  });
+
+  it('always exposes pickup and delivery, and only adds return when the order enters return flow', () => {
+    const orders = getMockApiOrders();
+    const order = orders.find((item) => item.id === '9299999900010');
+
+    expect(order?.shippingInfo?.stages?.map((stage) => stage.key)).toEqual([
+      'pickup',
+      'delivery',
+    ]);
+    expect(order?.shippingInfo?.stages?.[0]).toMatchObject({
+      carrier: 'SPX Express',
+      status: 'active',
+    });
+    expect(order?.shippingInfo?.stages?.[1]).toMatchObject({
+      carrier: 'SPX Express',
+      status: 'pending',
+      carrierStatusCode: 'WAITING_DELIVERY',
+    });
+    expect(
+      orders.every((item) => {
+        const stages = item.shippingInfo?.stages || [];
+        return (
+          stages.some((stage) => stage.key === 'pickup') &&
+          stages.some((stage) => stage.key === 'delivery')
+        );
+      }),
     ).toBe(true);
   });
 
