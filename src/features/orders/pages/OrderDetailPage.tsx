@@ -2132,7 +2132,7 @@ export default function OrderDetailPage() {
           {/* Right Column (~38% width) */}
           <div className="order-col-right">
             {/* Card 1: Quan hệ chặng, NVC và mã vận đơn (Harmonized match media_1789532965240.png) */}
-            <div className="order-card transport-card-shell">
+            <div className="order-card">
               <div className="order-card-header">
                 <div className="card-header-icon-box red">
                   <Truck size={16} />
